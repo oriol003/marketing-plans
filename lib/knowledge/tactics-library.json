@@ -1,0 +1,557 @@
+{
+    "phaseCategories": [
+        {
+            "id": "communication-strategy",
+            "title": "Develop Communication Strategy",
+            "description": "Before executing any marketing tactics, we must establish a clear and unified communication strategy. This phase involves deep research into your competitive landscape, target audience, and core messaging.",
+            "icon": "MessageSquare",
+            "tactics": [
+                {
+                    "id": "competitor-analysis",
+                    "title": "Competitor Analysis & Market Research",
+                    "hours": {
+                        "min": 4,
+                        "max": 4
+                    },
+                    "what": "Comprehensive analysis of primary competitors examining their features, pricing models, service approaches, and market messaging. Map the competitive landscape to identify white space opportunities and positioning advantages.",
+                    "why": "Clearly articulate why your approach delivers superior value compared to competitors. Understanding where you win and lose helps craft messaging that resonates with prospects evaluating multiple vendors.",
+                    "how": "Review competitor websites, marketing materials, and customer reviews. Identify positioning gaps and differentiation opportunities. Create competitive matrix for sales enablement.",
+                    "deliverable": "Competitive intelligence report with differentiation strategy and positioning recommendations"
+                },
+                {
+                    "id": "target-audience-research",
+                    "title": "Target Audience Research",
+                    "hours": {
+                        "min": 2,
+                        "max": 4
+                    },
+                    "what": "Development of detailed buyer personas including pain points, decision-making criteria, objections, and the channels they use to evaluate solutions.",
+                    "why": "Marketing must speak directly to the specific needs of your target audience, not generic buyers. Understanding their priorities ensures every message, every piece of content, and every campaign resonates with what actually matters to them.",
+                    "how": "Analyze existing customer data, conduct stakeholder interviews, review industry research, and synthesize findings into actionable persona documents.",
+                    "deliverable": "Buyer persona documents with pain points, goals, objections, and messaging guidance for each audience segment"
+                },
+                {
+                    "id": "messaging-strategy",
+                    "title": "Messaging Strategy",
+                    "hours": {
+                        "min": 2,
+                        "max": 6
+                    },
+                    "what": "A unified messaging framework that clearly articulates what you do, who you serve, and why you are different. Includes key messages for each audience segment, positioning statements, and narrative structures for consistent communication.",
+                    "why": "You need a single source of truth that ensures everyone on your team, and all your marketing materials, communicate consistently and compellingly.",
+                    "how": "Synthesize research insights into core messaging pillars. Develop elevator pitches, value propositions, and talk tracks for different contexts and audiences.",
+                    "deliverable": "Messaging playbook with positioning statements, key messages, elevator pitches, and talk tracks for sales conversations"
+                }
+            ]
+        },
+        {
+            "id": "marketing-collateral",
+            "title": "Create Marketing Collateral",
+            "description": "With a clear communication strategy in place, we will create professional marketing materials that equip your sales team and support prospect education throughout the buying process.",
+            "icon": "FileText",
+            "tactics": [
+                {
+                    "id": "sales-deck",
+                    "title": "Sales Deck",
+                    "hours": {
+                        "min": 6,
+                        "max": 12
+                    },
+                    "what": "Professionally designed sales presentation(s) tailored to specific use cases, audiences, and sales scenarios.",
+                    "why": "The value proposition and decision criteria differ by audience. Tailored decks allow the sales team to present a highly relevant, focused narrative that speaks directly to the prospect's needs.",
+                    "how": "Structure each deck to tell a compelling story, starting with the prospect's problem and leading to your unique solution. Incorporate brand messaging and visual design.",
+                    "deliverable": "Professionally designed sales presentation(s) with supporting speaker notes"
+                },
+                {
+                    "id": "explainer-video",
+                    "title": "Explainer Video (Animated)",
+                    "hours": {
+                        "min": 8,
+                        "max": 14
+                    },
+                    "what": "A 60-90 second animated explainer video that clearly and concisely communicates what you do and why you are different.",
+                    "why": "Video is highly effective for quickly educating prospects and can be used on the website homepage, in email signatures, and on social media. It distills complex offerings into an easily digestible format.",
+                    "how": "Develop script and storyboard that visualizes key concepts. Create modern, professional animation consistent with the brand. End with a strong call to action.",
+                    "deliverable": "60-90 second animated explainer video with script"
+                },
+                {
+                    "id": "product-sheets",
+                    "title": "Product Sheets / One-Pagers",
+                    "hours": {
+                        "min": 4,
+                        "max": 8
+                    },
+                    "what": "Concise, visually appealing one-pagers for each key offering and target audience. Each sheet highlights specific use cases, key features, core benefits, and differentiation points.",
+                    "why": "Prospects need clear reference materials as they evaluate solutions. These provide leave-behinds after calls and assets for email follow-up, ensuring your value proposition stays top-of-mind.",
+                    "how": "Design templates that can be easily customized for different products/services. Ensure consistent branding while allowing for specific messaging per audience.",
+                    "deliverable": "4-6 product one-pagers (digital and PDF format) for different solutions and audience segments"
+                }
+            ]
+        },
+        {
+            "id": "website-design",
+            "title": "Website Design",
+            "description": "Your website is the primary trust-building and qualification tool before prospects ever speak with your team. This phase creates a professional digital presence that converts visitors into leads.",
+            "icon": "Globe",
+            "tactics": [
+                {
+                    "id": "information-architecture",
+                    "title": "Information Architecture",
+                    "hours": {
+                        "min": 2,
+                        "max": 4
+                    },
+                    "what": "Plan and structure the website aligned with updated messaging, process framework, and business focus.",
+                    "why": "The website must support education and qualification, guiding visitors through a logical journey from awareness to consideration to action.",
+                    "how": "Define clear site structure including: Home, About, Services/Products, Process, Portfolio/Case Studies, Contact with qualification prompts.",
+                    "deliverable": "Site map and wireframes with navigation and content hierarchy"
+                },
+                {
+                    "id": "ui-design",
+                    "title": "Graphic and User Interface Design",
+                    "hours": {
+                        "min": 9,
+                        "max": 18
+                    },
+                    "what": "Multiple website design concepts emphasizing user experience and visual appeal.",
+                    "why": "Create a stunning website that aligns with your brand, is easy to navigate, and reflects a professional image to build trust with prospects.",
+                    "how": "Collaborate closely to develop designs incorporating brand elements—colors, fonts, and layout—ensuring the brand is presented attractively and impactfully.",
+                    "deliverable": "2-3 design concepts with revisions until final approval"
+                },
+                {
+                    "id": "copywriting",
+                    "title": "Professional Copywriting",
+                    "hours": {
+                        "min": 4,
+                        "max": 8
+                    },
+                    "what": "Compelling, conversion-focused website copy tailored to target audience needs and pain points, highlighting USPs and incorporating relevant SEO keywords.",
+                    "why": "The website needs clear, persuasive content that effectively communicates value and resonates with the audience to attract qualified leads and inspire action.",
+                    "how": "Apply messaging framework to each page. Write for both humans and search engines. Include clear calls to action throughout.",
+                    "deliverable": "SEO-optimized copy for all website pages"
+                },
+                {
+                    "id": "development",
+                    "title": "Programming, Customization, and Templates",
+                    "hours": {
+                        "min": 12,
+                        "max": 27
+                    },
+                    "what": "Customization of foundational technologies to support unique templates and functionalities.",
+                    "why": "Custom templates and designs simplify future content creation and ensure the website maintains consistency and efficiency as it grows.",
+                    "how": "Perform custom programming, integrating graphic design with seamless functionality to create user-friendly templates. Typically takes 2-3 weeks.",
+                    "deliverable": "Fully functional website with custom templates and admin training"
+                },
+                {
+                    "id": "responsive-qa",
+                    "title": "Responsive Development & QA",
+                    "hours": {
+                        "min": 4,
+                        "max": 6
+                    },
+                    "what": "Seamless and consistent viewing experience across different devices and browsers.",
+                    "why": "Responsive design guarantees the best user experience, enhancing professionalism and preventing leads from bouncing due to display or functionality issues.",
+                    "how": "Test across major devices (desktop, tablet, mobile) and browsers (Chrome, Safari, Firefox, Edge). Fix any rendering or functionality issues.",
+                    "deliverable": "Cross-browser and cross-device tested website with QA documentation"
+                }
+            ]
+        },
+        {
+            "id": "seo",
+            "title": "Search Engine Optimization (SEO)",
+            "description": "Ensure your business appears in relevant search results, increasing visibility and attracting qualified leads who are actively searching for solutions.",
+            "icon": "Search",
+            "tactics": [
+                {
+                    "id": "keyword-research",
+                    "title": "Industry Keyword Research",
+                    "hours": {
+                        "min": 4,
+                        "max": 6
+                    },
+                    "what": "Comprehensive keyword research and competitive analysis to identify the best phrases to target for initial SEO strategy.",
+                    "why": "Ensure the business appears in relevant search results for industry-related terms, increasing visibility and attracting qualified leads.",
+                    "how": "Analyze a mix of high-competition/high-volume industry phrases along with low-competition keywords relevant to the business.",
+                    "deliverable": "Keyword strategy document with priority targets and content recommendations"
+                },
+                {
+                    "id": "on-site-seo",
+                    "title": "On-Site Search Engine Optimization",
+                    "hours": {
+                        "min": 6,
+                        "max": 6
+                    },
+                    "what": "Advanced search optimization techniques to rank the website above competing sites.",
+                    "why": "Help the site dominate in searches related to competitors and increase relevance for specific keyword searches on major search engines.",
+                    "how": "Complete breakdown and edit of HTML, meta-tags, and content. Create XML sitemap, optimize page content, URLs, page titles, and meta descriptions.",
+                    "deliverable": "Fully optimized website with SEO technical audit"
+                },
+                {
+                    "id": "search-console",
+                    "title": "Setup Google & Bing Search Console",
+                    "hours": {
+                        "min": 1,
+                        "max": 1
+                    },
+                    "what": "Configuration of Google Search Console and Bing Webmaster Tools to monitor site health, submit sitemaps, identify crawl errors, and track search performance.",
+                    "why": "Search Console provides critical data on how search engines see the site and how prospects find you. It alerts to technical issues and provides insights for ongoing optimization.",
+                    "how": "Verify domain ownership, submit sitemaps, configure settings, and establish baseline metrics.",
+                    "deliverable": "Configured search console accounts with access credentials"
+                }
+            ]
+        },
+        {
+            "id": "content-marketing",
+            "title": "Content Marketing",
+            "description": "Position your company as a knowledgeable, trusted partner through consistent, high-quality content that attracts and educates prospects throughout their buying journey.",
+            "icon": "BookOpen",
+            "tactics": [
+                {
+                    "id": "content-calendar",
+                    "title": "SEO-Driven Content Calendar",
+                    "hours": {
+                        "min": 8,
+                        "max": 8,
+                        "recurring": "monthly"
+                    },
+                    "what": "Blog posts focused on industry topics designed to attract informed buyers.",
+                    "why": "Consistent publishing improves SEO for high-intent searches, supports long sales cycles, and reinforces credibility as a trusted partner rather than just a vendor.",
+                    "how": "Research high-value keywords, develop editorial calendar, write and optimize content, include relevant visuals and calls to action.",
+                    "deliverable": "2-4 professionally written, SEO-optimized blog posts per month with accompanying graphics"
+                },
+                {
+                    "id": "whitepapers",
+                    "title": "Whitepapers and Research Reports",
+                    "hours": {
+                        "min": 12,
+                        "max": 12
+                    },
+                    "what": "In-depth, gated content pieces that provide substantial value and capture contact information from serious prospects.",
+                    "why": "Whitepapers serve as high-value lead magnets that position you as a thought leader and provide substantial value throughout lengthy buying cycles.",
+                    "how": "Research topic thoroughly, outline comprehensive structure, write with expertise, design professionally, create promotion strategy.",
+                    "deliverable": "Professionally designed whitepaper (15-25 pages) with promotion strategy"
+                },
+                {
+                    "id": "case-studies",
+                    "title": "Case Studies",
+                    "hours": {
+                        "min": 6,
+                        "max": 6
+                    },
+                    "what": "Customer success stories demonstrating ROI and implementation success across key segments.",
+                    "why": "Concrete proof of results provides the social proof prospects need to justify their decision. Case studies answer 'will this work for me?'",
+                    "how": "Interview customer, gather metrics and quotes, write compelling narrative, design professionally, obtain approval.",
+                    "deliverable": "Case study with customer testimonials, metrics, and professional design"
+                }
+            ]
+        },
+        {
+            "id": "social-media",
+            "title": "Social Media Setup",
+            "description": "Establish strategic presence on the platforms where your audience spends their time, building brand awareness and generating inbound leads.",
+            "icon": "Share2",
+            "tactics": [
+                {
+                    "id": "social-strategy",
+                    "title": "Content Strategy",
+                    "hours": {
+                        "min": 6,
+                        "max": 6
+                    },
+                    "what": "Comprehensive social media strategy including content pillars, posting cadence, hashtag strategy, and personal branding approach.",
+                    "why": "Strategic content builds brand awareness, generates inbound leads, and positions your team as industry experts on the platforms your audience uses.",
+                    "how": "Audit current presence, analyze competitors, define content pillars, create posting calendar, develop engagement guidelines.",
+                    "deliverable": "Social media strategy document with content calendar template, content pillars, and posting guidelines"
+                },
+                {
+                    "id": "linkedin-setup",
+                    "title": "LinkedIn Page Setup",
+                    "hours": {
+                        "min": 2,
+                        "max": 3
+                    },
+                    "what": "Administrative access and optimization of company page branding, description, and tracking parameters.",
+                    "why": "Proper setup enables consistent posting, performance monitoring, and measurement of which content resonates with your professional audience.",
+                    "how": "Claim or create page, optimize all fields, add team members, configure settings, install tracking.",
+                    "deliverable": "Optimized LinkedIn company page with team access"
+                },
+                {
+                    "id": "facebook-setup",
+                    "title": "Facebook/Instagram Page Setup",
+                    "hours": {
+                        "min": 1,
+                        "max": 2
+                    },
+                    "what": "Setup and optimization of Facebook/Instagram business profiles with consistent branding.",
+                    "why": "Establish presence on platforms where many prospects research businesses before engaging.",
+                    "how": "Create or claim profiles, optimize all fields, configure business settings, connect accounts.",
+                    "deliverable": "Optimized Facebook/Instagram business profiles"
+                }
+            ]
+        },
+        {
+            "id": "tracking-analytics",
+            "title": "Tracking and Analytics",
+            "description": "Implement comprehensive tracking to measure marketing ROI, understand user behavior, and make data-driven decisions about where to invest time and budget.",
+            "icon": "BarChart",
+            "tactics": [
+                {
+                    "id": "crm-setup",
+                    "title": "Customer Relationship Management (CRM)",
+                    "hours": {
+                        "min": 2,
+                        "max": 4
+                    },
+                    "what": "Configuration of CRM solution to manage leads, contacts, and sales processes.",
+                    "why": "An intuitive CRM helps better manage, contact, segment, and target specific leads while providing visibility into the sales pipeline.",
+                    "how": "Import existing customer database, integrate website leads, configure automation, provide training.",
+                    "deliverable": "Configured CRM with imported data and team training"
+                },
+                {
+                    "id": "analytics-setup",
+                    "title": "Install Google Tag Manager & Google Analytics",
+                    "hours": {
+                        "min": 1,
+                        "max": 1
+                    },
+                    "what": "JavaScript code that collects marketing metrics from website and sends data to third-party services.",
+                    "why": "Easily add and manage all tracking scripts from a single dashboard, measuring conversions, traffic, and gathering analytical data.",
+                    "how": "Install Tag Manager container, configure Analytics property, set up goals, apply filters, integrate with other tools.",
+                    "deliverable": "Configured analytics with goals, filters, and integrations"
+                },
+                {
+                    "id": "call-tracking",
+                    "title": "Call & Form Tracking Setup",
+                    "hours": {
+                        "min": 1,
+                        "max": 1
+                    },
+                    "what": "Dynamic Number Insertion (DNI) to measure the success of all online and offline marketing efforts.",
+                    "why": "Assess which marketing efforts drive the most calls, empowering you to do more of what works and eliminate what doesn't.",
+                    "how": "Implement Dynamic Number Insertion on website to display correct tracking numbers based on visitor source.",
+                    "deliverable": "Call tracking configured with reporting dashboard"
+                }
+            ]
+        },
+        {
+            "id": "digital-advertising",
+            "title": "Digital Advertising",
+            "description": "Accelerate growth with targeted paid advertising that reaches your ideal customers at the moment they're searching for solutions like yours.",
+            "icon": "Megaphone",
+            "tactics": [
+                {
+                    "id": "google-ads",
+                    "title": "Google Ads",
+                    "hours": {
+                        "min": 12,
+                        "max": 12
+                    },
+                    "what": "Data-driven paid search campaign leveraging branded and relevant keywords to reach audiences actively searching.",
+                    "why": "Google Ads show up exactly when someone searches for your product/service, capturing high-intent traffic before competitors do.",
+                    "how": "Set up campaign structure with branded, competitor, geo-targeted, and product keywords. Create compelling ad copy and landing pages.",
+                    "deliverable": "Fully configured Google Ads campaign with tracking",
+                    "budgetOptions": {
+                        "minimum": 500,
+                        "recommended": 1000,
+                        "aggressive": 1500
+                    }
+                },
+                {
+                    "id": "meta-ads",
+                    "title": "Meta Ads (Facebook/Instagram)",
+                    "hours": {
+                        "min": 8,
+                        "max": 8
+                    },
+                    "what": "Highly targeted Facebook/Instagram ad campaign appealing to primary and secondary target audiences.",
+                    "why": "Meta's targeting allows reaching audiences by location, interests, and behaviors, promoting benefits to highly relevant prospects.",
+                    "how": "Create campaign structure, develop ad creative variations, set up targeting, configure tracking and optimization.",
+                    "deliverable": "Configured Meta Ads campaign with multiple ad variations",
+                    "budgetOptions": {
+                        "minimum": 500,
+                        "recommended": 1000,
+                        "aggressive": 2500
+                    }
+                },
+                {
+                    "id": "linkedin-ads",
+                    "title": "LinkedIn Ads",
+                    "hours": {
+                        "min": 8,
+                        "max": 8
+                    },
+                    "what": "Objective-based LinkedIn advertising to reach decision-makers and guide through buyer journey stages.",
+                    "why": "LinkedIn allows access to a finetuned professional audience, connecting directly with individuals in your target market.",
+                    "how": "Define audience parameters, create campaign structure, develop ad content, set up conversion tracking.",
+                    "deliverable": "Configured LinkedIn Ads campaign with targeting and tracking",
+                    "budgetOptions": {
+                        "minimum": 750,
+                        "recommended": 1500,
+                        "aggressive": 3000
+                    }
+                }
+            ]
+        },
+        {
+            "id": "reputation-management",
+            "title": "Reputation Management",
+            "description": "Build and protect your online reputation through proactive review management and consistent business listings across the web.",
+            "icon": "Star",
+            "tactics": [
+                {
+                    "id": "review-monitoring",
+                    "title": "Customer Review Monitoring",
+                    "hours": {
+                        "min": 1,
+                        "max": 2
+                    },
+                    "what": "Proactive customer review program to generate more positive online reviews and monitor sentiment.",
+                    "why": "Reviews from satisfied customers provide competitive advantage and build confidence among potential customers researching your business.",
+                    "how": "Set up monitoring dashboard, create review request workflows, establish response protocols, provide weekly reports.",
+                    "deliverable": "Review monitoring dashboard with email alerts"
+                },
+                {
+                    "id": "citation-campaign",
+                    "title": "Citation Campaign",
+                    "hours": {
+                        "min": 2,
+                        "max": 2
+                    },
+                    "what": "Submit listings to all major sites and 40+ relevant industry and regional sites. Correct NAP inaccuracies in existing citations.",
+                    "why": "Citations are 'votes of confidence' that help your Google Business Profile appear higher, while providing consistent branding and awareness.",
+                    "how": "Audit existing citations, correct inaccuracies, submit to major directories and industry-specific sites.",
+                    "deliverable": "Updated citations across 40+ directories with consistency audit"
+                }
+            ]
+        }
+    ],
+    "industryTemplates": {
+        "b2b-technology": {
+            "name": "B2B Technology/SaaS",
+            "recommendedPhases": [
+                "communication-strategy",
+                "content-marketing",
+                "social-media",
+                "website-design",
+                "tracking-analytics"
+            ],
+            "keyTactics": [
+                "competitor-analysis",
+                "messaging-strategy",
+                "whitepapers",
+                "linkedin-setup",
+                "linkedin-ads"
+            ],
+            "messagingThemes": [
+                "Security and compliance",
+                "Implementation speed",
+                "ROI and measurable outcomes",
+                "Integration capabilities",
+                "Support and partnership approach"
+            ]
+        },
+        "professional-services": {
+            "name": "Professional Services",
+            "recommendedPhases": [
+                "communication-strategy",
+                "reputation-management",
+                "seo",
+                "website-design",
+                "tracking-analytics"
+            ],
+            "keyTactics": [
+                "target-audience-research",
+                "case-studies",
+                "review-monitoring",
+                "citation-campaign",
+                "on-site-seo"
+            ],
+            "messagingThemes": [
+                "Trust and reliability",
+                "Local expertise",
+                "Responsive service",
+                "Industry specialization",
+                "Long-term partnership"
+            ]
+        },
+        "luxury-high-consideration": {
+            "name": "Luxury/High-Consideration Purchases",
+            "recommendedPhases": [
+                "communication-strategy",
+                "website-design",
+                "content-marketing",
+                "reputation-management"
+            ],
+            "keyTactics": [
+                "messaging-strategy",
+                "ui-design",
+                "case-studies",
+                "review-monitoring"
+            ],
+            "messagingThemes": [
+                "Quality over speed",
+                "Transparency in pricing",
+                "Process clarity",
+                "Local expertise",
+                "Client experience"
+            ]
+        },
+        "government-enterprise": {
+            "name": "Government/Enterprise Sales",
+            "recommendedPhases": [
+                "communication-strategy",
+                "content-marketing",
+                "marketing-collateral",
+                "website-design"
+            ],
+            "keyTactics": [
+                "competitor-analysis",
+                "whitepapers",
+                "sales-deck",
+                "case-studies"
+            ],
+            "messagingThemes": [
+                "Security and governance",
+                "Compliance certifications",
+                "Implementation support",
+                "Partner ecosystem",
+                "Proven track record"
+            ]
+        }
+    },
+    "hourPackages": {
+        "20": {
+            "name": "Foundation",
+            "scope": "Foundation only: Strategy, basic website, essential tracking",
+            "typicalPhases": [
+                "communication-strategy",
+                "tracking-analytics"
+            ]
+        },
+        "40": {
+            "name": "Standard",
+            "scope": "Strategy, website, SEO, social setup, content start",
+            "typicalPhases": [
+                "communication-strategy",
+                "website-design",
+                "seo",
+                "social-media",
+                "tracking-analytics"
+            ]
+        },
+        "60": {
+            "name": "Comprehensive",
+            "scope": "All above plus advertising, ongoing content, advanced tactics",
+            "typicalPhases": [
+                "communication-strategy",
+                "marketing-collateral",
+                "website-design",
+                "seo",
+                "content-marketing",
+                "social-media",
+                "digital-advertising",
+                "tracking-analytics"
+            ]
+        }
+    }
+}
