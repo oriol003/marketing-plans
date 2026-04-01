@@ -14,25 +14,17 @@ export default async function PlansPage() {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold text-slate-900">Marketing Plans</h1>
-            <p className="mt-2 text-lg text-slate-600">
+            <h1 className="text-3xl font-bold text-slate-900">Marketing Plans</h1>
+            <p className="mt-1 text-slate-600">
               Manage and create professional marketing proposals
             </p>
           </div>
-          <div className="flex gap-3">
-            <Link href="/templates">
-              <Button size="lg" variant="outline" className="gap-2">
-                <Blocks className="h-5 w-5" />
-                Manage Templates
-              </Button>
-            </Link>
-            <Link href="/plans/create">
-              <Button size="lg" className="gap-2">
-                <Plus className="h-5 w-5" />
-                New Plan
-              </Button>
-            </Link>
-          </div>
+          <Link href="/plans/create">
+            <Button size="lg" className="gap-2">
+              <Plus className="h-5 w-5" />
+              New Plan
+            </Button>
+          </Link>
         </div>
 
         {/* Plans Grid */}

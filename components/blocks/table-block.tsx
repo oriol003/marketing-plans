@@ -2,7 +2,6 @@
 
 import React, { useMemo, useState } from "react"
 import type { TableBlock as TableBlockType, TacticBlock } from "@/lib/types"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Trash2, Clock, TableIcon } from "lucide-react"
 import * as LucideIcons from "lucide-react"
@@ -36,34 +35,38 @@ function distributeHoursAcrossMonths(tactic: TacticBlock): Record<string, number
   const endDate = new Date(tactic.endDate)
   const totalHours = tactic.hours || 0
 
-  // Calculate the number of days the tactic spans
   const totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
 
-  // Generate all months covered by this tactic
-  const monthlyHours: Record<string, number> = {}
+  const monthly: Array<{ key: string; days: number }> = []
   const currentDate = new Date(startDate)
 
   while (currentDate <= endDate) {
     const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`
-
-    // Calculate days in this month that fall within the tactic's date range
     const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
     const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-
-    const rangeStart =
-      currentDate.getTime() === startDate.getTime() ? startDate : monthStart > startDate ? monthStart : startDate
-    const rangeEnd = monthEnd < endDate ? monthEnd : endDate
-
+    const rangeStart = monthStart < startDate ? startDate : monthStart
+    const rangeEnd = monthEnd > endDate ? endDate : monthEnd
     const daysInMonth = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
-
-    // Distribute hours proportionally
-    monthlyHours[monthKey] = (daysInMonth / totalDays) * totalHours
-
-    // Move to next month
+    monthly.push({ key: monthKey, days: daysInMonth })
     currentDate.setMonth(currentDate.getMonth() + 1)
     currentDate.setDate(1)
   }
 
+  // Smart rounding: largest remainder method to preserve total
+  const rawShares = monthly.map(m => (m.days / totalDays) * totalHours)
+  const floored = rawShares.map(v => Math.floor(v))
+  let remainder = totalHours - floored.reduce((s, v) => s + v, 0)
+
+  const indexed = rawShares.map((v, i) => ({ i, frac: v - Math.floor(v) }))
+  indexed.sort((a, b) => b.frac - a.frac)
+  for (const item of indexed) {
+    if (remainder <= 0) break
+    floored[item.i] += 1
+    remainder -= 1
+  }
+
+  const monthlyHours: Record<string, number> = {}
+  monthly.forEach((m, i) => { monthlyHours[m.key] = floored[i] })
   return monthlyHours
 }
 
@@ -74,7 +77,7 @@ export function TableBlock({ block, dragHandleProps }: TableBlockProps) {
   const [clientPlan, setClientPlan] = useState<ClientPlan>("custom")
 
   const tacticData = useMemo(() => {
-    if (!currentPlan) return { tactics: [], months: [], totalHours: 0, groupedTactics: [] }
+    if (!currentPlan) return { tactics: [], months: [], totalHours: 0, groupedTactics: [], monthlyTotals: {} as Record<string, number> }
 
     const flattenBlocks = (blocks: any[]): any[] => {
       const flat: any[] = []
@@ -98,7 +101,8 @@ export function TableBlock({ block, dragHandleProps }: TableBlockProps) {
         const sectionTactics = block.children
           .filter((child: any) => child.type === "tactic")
           .map((tactic: any) => {
-            const monthlyHours = distributeHoursAcrossMonths(tactic)
+            const hasManualHours = tactic.hoursByMonth && Object.values(tactic.hoursByMonth).some((v: any) => v > 0)
+            const monthlyHours = hasManualHours ? tactic.hoursByMonth : distributeHoursAcrossMonths(tactic)
             Object.keys(monthlyHours).forEach((month) => monthsSet.add(month))
 
             return {
@@ -137,11 +141,11 @@ export function TableBlock({ block, dragHandleProps }: TableBlockProps) {
     const totalHours = tactics.reduce((sum, tactic) => sum + (tactic.hours || 0), 0)
 
     return {
-      tactics: groupedTactics.flatMap((g) => g.tactics), // Flat list for backward compatibility
+      tactics: groupedTactics.flatMap((g) => g.tactics),
       months,
       monthlyTotals,
       totalHours,
-      groupedTactics, // New grouped structure
+      groupedTactics,
     }
   }, [currentPlan])
 
@@ -176,11 +180,7 @@ export function TableBlock({ block, dragHandleProps }: TableBlockProps) {
     }
 
     const newHours = Number.parseInt(editValue) || 0
-
-    updateBlock(editingCell.tacticId, {
-      hours: newHours,
-    })
-
+    updateBlock(editingCell.tacticId, { hours: newHours })
     setEditingCell(null)
   }
 
@@ -224,7 +224,6 @@ export function TableBlock({ block, dragHandleProps }: TableBlockProps) {
       if (months.length === 0) return
 
       const targetPerMonth = Math.min(hoursPerMonth, Math.floor(tactic.hours / months.length))
-
       const totalAllocated = targetPerMonth * months.length
 
       if (totalAllocated !== tactic.hours) {
@@ -235,153 +234,156 @@ export function TableBlock({ block, dragHandleProps }: TableBlockProps) {
   }
 
   return (
-    <Card className="group relative border-l-4 border-l-accent hover:shadow-md transition-all">
+    <div className="relative group py-8 border-b border-border/30 last:border-b-0">
       <div className="hidden" {...dragHandleProps} />
 
-      <CardHeader className="pb-2 pl-12 pr-4 pt-4 flex flex-row items-start justify-between space-y-0">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-accent/10 text-accent">
-            <TableIcon className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#1DB5C4]/10">
+            <TableIcon className="w-5 h-5 text-[#1DB5C4]" />
           </div>
-          <h3 className="font-semibold text-lg">{block.title}</h3>
+          <div>
+            <h3 className="font-heading font-semibold text-lg text-[#2A3441]">{block.title}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Production hours summary by month</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-3">
+          <Select value={clientPlan} onValueChange={(value: ClientPlan) => setClientPlan(value)}>
+            <SelectTrigger className="w-[180px] h-8 text-xs border-border/50">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(CLIENT_PLANS).map(([key, config]) => (
+                <SelectItem key={key} value={key} className="text-xs">
+                  {config.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {clientPlan !== "custom" && (
+            <Button size="sm" variant="outline" onClick={autoDistributeHours} className="h-8 text-xs">
+              Auto-Distribute
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => deleteBlock(block.id)}
-            className="h-8 w-8 text-destructive hover:text-destructive"
+            className="h-8 w-8 text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
           >
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="pl-12 pr-4 pb-4">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b">
-          <div className="text-sm text-muted-foreground">Production hours summary by month</div>
-          <div className="flex items-center gap-2">
-            <Select value={clientPlan} onValueChange={(value: ClientPlan) => setClientPlan(value)}>
-              <SelectTrigger className="w-[200px] h-9 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(CLIENT_PLANS).map(([key, config]) => (
-                  <SelectItem key={key} value={key}>
-                    {config.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {clientPlan !== "custom" && (
-              <Button size="sm" variant="outline" onClick={autoDistributeHours} className="h-9 bg-transparent">
-                Auto-Distribute
-              </Button>
-            )}
-          </div>
+      {clientPlan !== "custom" && (
+        <div className="mb-4 px-4 py-2.5 bg-[#1DB5C4]/5 border border-[#1DB5C4]/20 rounded-lg text-xs text-[#1DB5C4]">
+          <strong>Plan Limit:</strong> {CLIENT_PLANS[clientPlan].hoursPerMonth} hours/month max. Click "Auto-Distribute" to allocate within limits.
         </div>
+      )}
 
-        {clientPlan !== "custom" && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-            <strong>Plan Limit:</strong> {CLIENT_PLANS[clientPlan].hoursPerMonth} hours per month maximum. Click
-            "Auto-Distribute" to evenly allocate hours within plan limits.
-          </div>
-        )}
+      {/* Table */}
+      <div className="overflow-x-auto border border-border/40 rounded-lg">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30 hover:bg-muted/30">
+              <TableHead className="w-[36px] py-2.5"></TableHead>
+              <TableHead className="min-w-[180px] py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Activity</TableHead>
+              {tacticData.months.map((month) => (
+                <TableHead key={month} className="text-center min-w-[70px] py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {formatMonth(month)}
+                </TableHead>
+              ))}
+              <TableHead className="text-center font-semibold min-w-[70px] py-2.5 text-xs uppercase tracking-wide text-[#2A3441]">Total</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tacticData.groupedTactics.map((group, groupIndex) => {
+              const SectionIcon = (LucideIcons as any)[group.sectionIcon] || LucideIcons.Folder
 
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px]"></TableHead>
-                <TableHead className="min-w-[200px]">Tactic</TableHead>
-                {tacticData.months.map((month) => (
-                  <TableHead key={month} className="text-right min-w-[100px]">
-                    {formatMonth(month)}
-                  </TableHead>
-                ))}
-                <TableHead className="text-right font-semibold min-w-[100px]">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tacticData.groupedTactics.map((group, groupIndex) => {
-                const SectionIcon = (LucideIcons as any)[group.sectionIcon] || LucideIcons.Folder
+              return (
+                <React.Fragment key={groupIndex}>
+                  <TableRow className="bg-muted/20 hover:bg-muted/20 border-t border-border/30">
+                    <TableCell colSpan={2 + tacticData.months.length + 1} className="py-2">
+                      <div className="flex items-center gap-2 text-xs font-semibold text-[#2A3441] uppercase tracking-wide">
+                        <SectionIcon className="w-3.5 h-3.5 text-[#FF9500]" />
+                        {group.sectionTitle}
+                      </div>
+                    </TableCell>
+                  </TableRow>
 
-                return (
-                  <React.Fragment key={groupIndex}>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableCell colSpan={2 + tacticData.months.length + 1} className="py-3">
-                        <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
-                          <SectionIcon className="w-4 h-4 text-primary" />
-                          {group.sectionTitle}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                  {group.tactics.map((tactic) => {
+                    const IconComponent = (LucideIcons as any)[tactic.icon] || LucideIcons.Package
 
-                    {group.tactics.map((tactic) => {
-                      const IconComponent = (LucideIcons as any)[tactic.icon] || LucideIcons.Package
-
-                      return (
-                        <TableRow key={tactic.id}>
-                          <TableCell>
-                            <div className="p-1.5 rounded bg-primary/10 text-primary w-fit">
-                              <IconComponent className="w-4 h-4" />
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-medium">{tactic.title}</TableCell>
-                          {tacticData.months.map((month) => (
-                            <TableCell key={month} className="text-right">
-                              {tactic.monthlyHours[month] ? `${Math.round(tactic.monthlyHours[month])}h` : "-"}
-                            </TableCell>
-                          ))}
-                          <TableCell
-                            className="text-right font-semibold cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() => handleCellClick(tactic.id, "total", tactic.totalHours)}
-                          >
-                            {editingCell?.tacticId === tactic.id && editingCell?.month === "total" ? (
-                              <Input
-                                type="number"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onBlur={handleCellBlur}
-                                onKeyDown={handleCellKeyDown}
-                                className="h-8 w-20 text-right"
-                                autoFocus
-                              />
+                    return (
+                      <TableRow key={tactic.id} className="hover:bg-muted/10">
+                        <TableCell className="py-2">
+                          <div className="w-6 h-6 rounded flex items-center justify-center bg-[#1DB5C4]/8">
+                            <IconComponent className="w-3 h-3 text-[#1DB5C4]" />
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium text-sm text-[#2A3441] py-2">{tactic.title}</TableCell>
+                        {tacticData.months.map((month) => (
+                          <TableCell key={month} className="text-center text-sm py-2 text-muted-foreground">
+                            {tactic.monthlyHours[month] ? (
+                              <span className="text-foreground">{Math.round(tactic.monthlyHours[month])}</span>
                             ) : (
-                              `${tactic.totalHours}h`
+                              <span className="text-muted-foreground/30">—</span>
                             )}
                           </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </React.Fragment>
-                )
-              })}
+                        ))}
+                        <TableCell
+                          className="text-center font-semibold text-sm py-2 cursor-pointer hover:bg-muted/30 transition-colors text-[#2A3441]"
+                          onClick={() => handleCellClick(tactic.id, "total", tactic.totalHours)}
+                        >
+                          {editingCell?.tacticId === tactic.id && editingCell?.month === "total" ? (
+                            <Input
+                              type="number"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={handleCellBlur}
+                              onKeyDown={handleCellKeyDown}
+                              className="h-7 w-16 text-center mx-auto text-sm"
+                              autoFocus
+                            />
+                          ) : (
+                            tactic.totalHours
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </React.Fragment>
+              )
+            })}
 
-              <TableRow className="bg-muted/50 font-semibold">
-                <TableCell></TableCell>
-                <TableCell>Total Production Hours</TableCell>
-                {tacticData.months.map((month) => (
-                  <TableCell key={month} className="text-right">
-                    {Math.round(tacticData.monthlyTotals[month])}h
-                  </TableCell>
-                ))}
-                <TableCell className="text-right flex items-center justify-end gap-2">
-                  <Clock className="w-4 h-4 text-primary" />
-                  {tacticData.totalHours}h
+            {/* Totals row */}
+            <TableRow className="bg-[#2A3441]/5 hover:bg-[#2A3441]/5 border-t-2 border-border/50">
+              <TableCell></TableCell>
+              <TableCell className="font-semibold text-sm text-[#2A3441] py-3">Total Hours</TableCell>
+              {tacticData.months.map((month) => (
+                <TableCell key={month} className="text-center font-semibold text-sm py-3 text-[#2A3441]">
+                  {Math.round(tacticData.monthlyTotals[month])}
                 </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </div>
+              ))}
+              <TableCell className="text-center py-3">
+                <div className="inline-flex items-center gap-1.5 font-bold text-sm text-[#1DB5C4]">
+                  <Clock className="w-3.5 h-3.5" />
+                  {tacticData.totalHours}h
+                </div>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
 
-        {tacticData.tactics.length === 0 && (
-          <p className="text-center text-muted-foreground py-8 text-sm">
-            No tactics added yet. Add tactics to see the hours summary.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      {tacticData.tactics.length === 0 && (
+        <p className="text-center text-muted-foreground py-8 text-sm">
+          No tactics added yet. Add tactics to see the hours summary.
+        </p>
+      )}
+    </div>
   )
 }

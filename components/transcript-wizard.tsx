@@ -122,6 +122,8 @@ interface ExtractedTactic {
   suggestedSubTactics: string[]
   status: "pending" | "approved" | "rejected" | "editing"
   expanded?: boolean
+  phaseOf?: string
+  phaseNumber?: number
 }
 
 interface TranscriptWizardProps {
@@ -165,10 +167,31 @@ export function TranscriptWizard({ onComplete, onBack }: TranscriptWizardProps) 
   const [showOpportunities, setShowOpportunities] = useState(false)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
 
-  // Get unique categories from tactics
-  const categories = Array.from(new Set(extractedTactics.map(t => t.category))).sort()
+  // Group tactics by campaign (phaseOf) first, then by category for ungrouped
+  const campaigns = Array.from(new Set(extractedTactics.filter(t => t.phaseOf).map(t => t.phaseOf!)))
+  const ungroupedTactics = extractedTactics.filter(t => !t.phaseOf)
+  const ungroupedCategories = Array.from(new Set(ungroupedTactics.map(t => t.category))).sort()
 
-  // Group tactics by category
+  // Build unified group list: campaigns first, then ungrouped categories
+  const allGroups: { key: string; label: string; type: 'campaign' | 'category'; tactics: ExtractedTactic[] }[] = [
+    ...campaigns.map(campaign => ({
+      key: `campaign:${campaign}`,
+      label: campaign,
+      type: 'campaign' as const,
+      tactics: extractedTactics
+        .filter(t => t.phaseOf === campaign)
+        .sort((a, b) => (a.phaseNumber || 0) - (b.phaseNumber || 0)),
+    })),
+    ...ungroupedCategories.map(cat => ({
+      key: `category:${cat}`,
+      label: cat,
+      type: 'category' as const,
+      tactics: ungroupedTactics.filter(t => t.category === cat),
+    })),
+  ]
+
+  // Legacy compat: flat category grouping for the build step
+  const categories = Array.from(new Set(extractedTactics.map(t => t.category))).sort()
   const tacticsByCategory = categories.reduce((acc, cat) => {
     acc[cat] = extractedTactics.filter(t => t.category === cat)
     return acc
@@ -355,27 +378,38 @@ export function TranscriptWizard({ onComplete, onBack }: TranscriptWizardProps) 
       }
     }
 
-    const sourceCategory = result.source.droppableId.replace('category-', '')
-    const destCategory = result.destination.droppableId.replace('category-', '')
+    const sourceGroupKey = result.source.droppableId.replace('group-', '')
+    const destGroupKey = result.destination.droppableId.replace('group-', '')
 
     // Get the dragged tactic
     const draggedTactic = extractedTactics.find(t => t.id === result.draggableId)
     if (!draggedTactic) return
 
-    // If moving to a different category, update the tactic's category
-    if (sourceCategory !== destCategory) {
+    // If moving to a different group, update the tactic's group membership
+    if (sourceGroupKey !== destGroupKey) {
       setExtractedTactics(prev =>
-        prev.map(t => t.id === result.draggableId ? { ...t, category: destCategory } : t)
+        prev.map(t => {
+          if (t.id !== result.draggableId) return t
+          // Parse target group type
+          if (destGroupKey.startsWith('campaign:')) {
+            return { ...t, phaseOf: destGroupKey.replace('campaign:', '') }
+          } else {
+            return { ...t, category: destGroupKey.replace('category:', ''), phaseOf: undefined }
+          }
+        })
       )
     } else {
-      // Reorder within the same category
-      const categoryTactics = extractedTactics.filter(t => t.category === sourceCategory)
-      const otherTactics = extractedTactics.filter(t => t.category !== sourceCategory)
+      // Reorder within the same group
+      const sourceGroup = allGroups.find(g => g.key === sourceGroupKey)
+      if (!sourceGroup) return
+      const groupTacticIds = new Set(sourceGroup.tactics.map(t => t.id))
+      const groupTactics = extractedTactics.filter(t => groupTacticIds.has(t.id))
+      const otherTactics = extractedTactics.filter(t => !groupTacticIds.has(t.id))
 
-      const [reorderedItem] = categoryTactics.splice(result.source.index, 1)
-      categoryTactics.splice(result.destination.index, 0, reorderedItem)
+      const [reorderedItem] = groupTactics.splice(result.source.index, 1)
+      groupTactics.splice(result.destination.index, 0, reorderedItem)
 
-      setExtractedTactics([...otherTactics, ...categoryTactics])
+      setExtractedTactics([...otherTactics, ...groupTactics])
     }
   }, [extractedTactics, dragMergeTarget])
 
@@ -1013,39 +1047,16 @@ Example:
             <Loader2 className="w-10 h-10 text-amber-600 animate-spin" />
           </div>
           <h2 className="text-2xl font-bold mb-2">Extracting Tactics</h2>
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-center gap-3 justify-center">
-              <div className={cn(
-                "w-6 h-6 rounded-full flex items-center justify-center",
-                processingStage === "outline" ? "bg-amber-500" : "bg-green-500"
-              )}>
-                {processingStage === "outline" ? (
-                  <Loader2 className="w-4 h-4 text-white animate-spin" />
-                ) : (
-                  <Check className="w-4 h-4 text-white" />
-                )}
+              <div className="w-6 h-6 rounded-full flex items-center justify-center bg-amber-500">
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
               </div>
-              <span className="text-sm">Finding tactics with Gemini 3 Pro</span>
-            </div>
-            <div className="flex items-center gap-3 justify-center">
-              <div className={cn(
-                "w-6 h-6 rounded-full flex items-center justify-center",
-                processingStage === "elaborating" ? "bg-amber-500" :
-                  processingStage === "done" ? "bg-green-500" : "bg-gray-300"
-              )}>
-                {processingStage === "elaborating" ? (
-                  <Loader2 className="w-4 h-4 text-white animate-spin" />
-                ) : processingStage === "done" ? (
-                  <Check className="w-4 h-4 text-white" />
-                ) : (
-                  <Zap className="w-4 h-4 text-gray-500" />
-                )}
-              </div>
-              <span className="text-sm">Adding deliverables & client quotes with Gemini 3 Flash</span>
+              <span className="text-sm">Analyzing transcript & structuring into phases</span>
             </div>
           </div>
-          <p className="text-muted-foreground mt-4">
-            Using context from summary to find relevant tactics...
+          <p className="text-muted-foreground mt-4 text-sm">
+            Finding tactics, decomposing multi-platform campaigns into focused phases, and adding deliverable details...
           </p>
         </div>
       </div>
@@ -1125,28 +1136,49 @@ Example:
             </div>
           </div>
 
-          {/* Category-grouped Tactic List */}
+          {/* Campaign & Category-grouped Tactic List */}
           <DragDropContext onDragEnd={handleDragEnd}>
             <div className="space-y-6">
-              {categories.map(category => {
-                const categoryTactics = tacticsByCategory[category] || []
-                const isCollapsed = collapsedCategories.has(category)
+              {allGroups.map(group => {
+                const categoryTactics = group.tactics
+                const isCollapsed = collapsedCategories.has(group.key)
                 const categoryApproved = categoryTactics.filter(t => t.status === "approved").length
                 const categoryHours = categoryTactics.reduce((sum, t) => sum + t.estimatedHours, 0)
-                const CategoryIcon = getIconComponent(suggestIconForTactic(category, ""))
+                const CategoryIcon = getIconComponent(suggestIconForTactic(group.label, ""))
+                const isCampaign = group.type === 'campaign'
 
                 return (
-                  <div key={category} className="bg-white rounded-2xl border shadow-sm overflow-hidden">
-                    {/* Category Header */}
+                  <div key={group.key} className={cn(
+                    "rounded-2xl border shadow-sm overflow-hidden",
+                    isCampaign ? "bg-white ring-1 ring-amber-200" : "bg-white"
+                  )}>
+                    {/* Group Header */}
                     <div
-                      className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-white cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => toggleCategoryCollapse(category)}
+                      className={cn(
+                        "flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 transition-colors",
+                        isCampaign
+                          ? "bg-gradient-to-r from-amber-50 to-orange-50/50"
+                          : "bg-gradient-to-r from-gray-50 to-white"
+                      )}
+                      onClick={() => toggleCategoryCollapse(group.key)}
                     >
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center",
+                        isCampaign
+                          ? "bg-gradient-to-br from-orange-400 to-amber-600"
+                          : "bg-gradient-to-br from-amber-400 to-amber-600"
+                      )}>
                         <CategoryIcon className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-lg">{category}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-lg">{group.label}</h3>
+                          {isCampaign && (
+                            <span className="text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                              Campaign
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">
                           {categoryTactics.length} tactics • {categoryApproved} approved • {categoryHours}h total
                         </p>
@@ -1163,9 +1195,9 @@ Example:
                       </div>
                     </div>
 
-                    {/* Tactics in Category */}
+                    {/* Tactics in Group */}
                     {!isCollapsed && (
-                      <Droppable droppableId={`category-${category}`}>
+                      <Droppable droppableId={`group-${group.key}`}>
                         {(provided) => (
                           <div
                             {...provided.droppableProps}
@@ -1216,6 +1248,7 @@ Example:
                                       {isEditing ? (
                                         // Edit mode
                                         <div className="p-6 space-y-4">
+                                          <div {...provided.dragHandleProps} className="hidden" />
                                           <div className="flex items-center gap-2 mb-4">
                                             <Edit3 className="w-5 h-5 text-amber-600" />
                                             <h3 className="font-semibold">Edit Tactic</h3>

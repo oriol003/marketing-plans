@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Card } from "@/components/ui/card"
 import {
   GripVertical,
   Plus,
@@ -19,14 +18,27 @@ import {
   FolderOpen,
   Loader2,
   Zap,
+  Search,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Package,
 } from "lucide-react"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import type { Block, TacticBlock, TacticTemplate } from "@/lib/types"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, createContext, useContext } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import * as LucideIcons from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { tacticCategories } from "@/lib/tactic-templates"
+
+// Context for expand/collapse all
+const OutlineContext = createContext<{
+  globalExpanded: boolean | null // null = individual control, true/false = forced
+  resetGlobal: () => void
+}>({ globalExpanded: null, resetGlobal: () => {} })
 
 // Helper function to flatten blocks
 const getAllBlocksFlattened = (blocks: Block[]): Block[] => {
@@ -45,6 +57,121 @@ const getAllBlocksFlattened = (blocks: Block[]): Block[] => {
   return result
 }
 
+// ─────────────────────────────────────────────
+// Tactic Drawer (left panel)
+// ─────────────────────────────────────────────
+function TacticDrawer({
+  templates,
+  isLoading,
+  onAddTactic,
+}: {
+  templates: TacticTemplate[]
+  isLoading: boolean
+  onAddTactic: (template: TacticTemplate) => void
+}) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(tacticCategories))
+
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev)
+      if (next.has(cat)) next.delete(cat)
+      else next.add(cat)
+      return next
+    })
+  }
+
+  const filteredTemplates = searchQuery.trim()
+    ? templates.filter(
+        (t) =>
+          t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          t.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          t.category.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
+    : templates
+
+  // Group by category
+  const grouped = tacticCategories
+    .map((cat) => ({
+      category: cat,
+      tactics: filteredTemplates.filter((t) => t.category === cat),
+    }))
+    .filter((g) => g.tactics.length > 0)
+
+  return (
+    <div className="w-[280px] shrink-0 border-r bg-muted/30 flex flex-col h-full overflow-hidden">
+      <div className="p-3 border-b space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tactic Templates</h3>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search tactics..."
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        {isLoading ? (
+          <div className="flex items-center justify-center p-8">
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : grouped.length === 0 ? (
+          <div className="p-4 text-center text-xs text-muted-foreground">
+            {searchQuery ? "No tactics match your search" : "No templates available"}
+          </div>
+        ) : (
+          <div className="py-1">
+            {grouped.map((group) => (
+              <div key={group.category}>
+                <button
+                  onClick={() => toggleCategory(group.category)}
+                  className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                >
+                  {expandedCategories.has(group.category) ? (
+                    <ChevronDown className="w-3 h-3 shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3 shrink-0" />
+                  )}
+                  <span className="truncate">{group.category}</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground/60">{group.tactics.length}</span>
+                </button>
+
+                {expandedCategories.has(group.category) && (
+                  <div className="pb-1">
+                    {group.tactics.map((tactic) => {
+                      const Icon = tactic.icon
+                        ? (LucideIcons as any)[tactic.icon] || Package
+                        : Package
+                      return (
+                        <button
+                          key={tactic.id}
+                          onClick={() => onAddTactic(tactic)}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 pl-7 text-left hover:bg-muted/80 transition-colors group"
+                          title={tactic.description}
+                        >
+                          <Icon className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary shrink-0" />
+                          <span className="text-xs truncate">{tactic.name}</span>
+                          <Plus className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 text-muted-foreground shrink-0 transition-opacity" />
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
+// Compact Outline Item
+// ─────────────────────────────────────────────
 function OutlineItem({
   block,
   index,
@@ -57,27 +184,34 @@ function OutlineItem({
   parentId?: string | null
 }) {
   const { updateBlock, removeBlock, addBlock, currentPlan } = usePlanStore()
-  const [isExpanded, setIsExpanded] = useState(true)
+  const { globalExpanded, resetGlobal } = useContext(OutlineContext)
+  const [localExpanded, setLocalExpanded] = useState(false) // collapsed by default
   const [isAddingChild, setIsAddingChild] = useState(false)
   const [isReferenceDialogOpen, setIsReferenceDialogOpen] = useState(false)
   const [selectedReferenceIds, setSelectedReferenceIds] = useState<string[]>([])
   const [references, setReferences] = useState<Array<{ id: string; title: string; content: string }>>([])
   const [isLoadingReferences, setIsLoadingReferences] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false) // Track generation state per block
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
+  const [showSourceContext, setShowSourceContext] = useState(false)
   const { toast } = useToast()
 
-  useEffect(() => {
-    console.log(`[v0] OutlineItem mounted - Block: "${block.title}" (${block.type}) Depth: ${depth}`)
-  }, [block.title, block.type, depth])
+  // Use global override if set, otherwise use local state
+  const isExpanded = globalExpanded !== null ? globalExpanded : localExpanded
+
+  const toggleExpanded = () => {
+    if (globalExpanded !== null) {
+      resetGlobal()
+    }
+    setLocalExpanded((prev) => !prev)
+  }
 
   useEffect(() => {
     if (isReferenceDialogOpen && currentPlan?.id) {
-      console.log(`[v0] Loading references for block: "${block.title}"`)
       setIsLoadingReferences(true)
       fetch(`/api/plans/${currentPlan.id}/references`)
         .then((res) => res.json())
         .then((data) => {
-          console.log(`[v0] Loaded ${data.references?.length || 0} references`)
           setReferences(data.references || [])
           setIsLoadingReferences(false)
         })
@@ -86,27 +220,24 @@ function OutlineItem({
           setIsLoadingReferences(false)
         })
     }
-  }, [isReferenceDialogOpen, currentPlan?.id, block.title])
+  }, [isReferenceDialogOpen, currentPlan?.id])
 
   const getBlockIcon = (block: Block) => {
-    if (block.type === "section") return <FolderOpen className="w-4 h-4" />
+    if (block.type === "section") return <FolderOpen className="w-3.5 h-3.5" />
     if (block.type === "tactic" && "icon" in block && block.icon) {
       const Icon = (LucideIcons as any)[block.icon] || LucideIcons.Package
-      return <Icon className="w-4 h-4" />
+      return <Icon className="w-3.5 h-3.5" />
     }
-    if (block.type === "table") return <TableIcon className="w-4 h-4" />
-    if (block.type === "timeline") return <Calendar className="w-4 h-4" />
-    return <FileText className="w-4 h-4" />
+    if (block.type === "table") return <TableIcon className="w-3.5 h-3.5" />
+    if (block.type === "timeline") return <Calendar className="w-3.5 h-3.5" />
+    return <FileText className="w-3.5 h-3.5" />
   }
 
   const handleRegenerateBlock = async (blockId: string, referenceIds?: string[]) => {
     const allBlocks = getAllBlocksFlattened(currentPlan?.blocks || [])
     const block = allBlocks.find((b) => b.id === blockId)
 
-    console.log(`[v0] Looking for block ID: ${blockId} in ${allBlocks.length} total blocks`)
-
     if (!block) {
-      console.error(`[v0] Block not found: ${blockId}`)
       toast({
         title: "Block not found",
         description: "Could not find the block to generate content for.",
@@ -115,10 +246,7 @@ function OutlineItem({
       return
     }
 
-    if (block.type !== "tactic" && block.type !== "text") {
-      console.log(`[v0] Block type ${block.type} is not supported for content generation`)
-      return
-    }
+    if (block.type !== "tactic" && block.type !== "text") return
 
     const sourceContext = (block as any).sourceContext || ""
     if (!sourceContext.trim()) {
@@ -130,7 +258,6 @@ function OutlineItem({
       return
     }
 
-    console.log(`[v0] Starting content generation for block: ${block.title}`)
     setIsGenerating(true)
 
     toast({
@@ -139,39 +266,34 @@ function OutlineItem({
     })
 
     try {
-      updateBlock(blockId, { content: "🤖 AI is generating content... This may take 10-30 seconds." })
+      updateBlock(blockId, { content: "AI is generating content... This may take 10-30 seconds." })
 
-      // Get all blocks for context
+      const allBlocks = getAllBlocksFlattened(currentPlan?.blocks || [])
       const currentIndex = allBlocks.findIndex((b) => b.id === blockId)
 
-      // Get previous blocks (up to 3) that have content
       const previousBlocks = allBlocks
         .slice(0, currentIndex)
         .filter((b) => b.content && b.content.trim())
         .slice(-3)
         .map((b) => ({ title: b.title, content: b.content }))
 
-      // Get upcoming blocks (up to 5)
       const upcomingBlocks = allBlocks
         .slice(currentIndex + 1)
         .slice(0, 5)
         .map((b) => ({ title: b.title }))
 
-      console.log(`[v0] Calling generate-block API for "${block.title}" with ${referenceIds?.length || 0} references`)
-      console.log(`[v0] Context: ${previousBlocks.length} previous blocks, ${upcomingBlocks.length} upcoming blocks`)
-
       const response = await fetch(`/api/plans/${currentPlan?.id}/generate-block`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          blockType: block.type, // Pass block type to API
+          blockType: block.type,
           tacticName: block.title,
           tacticDescription: sourceContext,
           clientName: currentPlan?.clientName,
           objective: currentPlan?.objective,
           referenceIds: referenceIds || [],
-          previousBlocks, // Send previous blocks for context
-          upcomingBlocks, // Send upcoming blocks for context
+          previousBlocks,
+          upcomingBlocks,
         }),
       })
 
@@ -181,39 +303,31 @@ function OutlineItem({
       }
 
       const { content } = await response.json()
-
-      console.log(`[v0] Successfully generated ${content.length} characters for "${block.title}"`)
-
       updateBlock(blockId, { content })
 
       toast({
-        title: "Content generated ✓",
+        title: "Content generated",
         description: `Successfully generated content for "${block.title}"`,
       })
     } catch (error) {
       console.error("[v0] Error regenerating content:", error)
-      updateBlock(blockId, { content: "" }) // Clear loading text on error
+      updateBlock(blockId, { content: "" })
       toast({
         title: "Generation failed",
         description: error instanceof Error ? error.message : "Failed to generate content. Please try again.",
         variant: "destructive",
       })
     } finally {
-      setIsGenerating(false) // Reset generating state
-      console.log(`[v0] Finished generation process for "${block.title}"`)
+      setIsGenerating(false)
     }
   }
 
-  // Add logging to track event
   const handleOpenReferenceDialog = () => {
-    console.log(`[v0] Opening reference dialog for block: "${block.title}" (${block.type})`)
     setIsReferenceDialogOpen(true)
     setSelectedReferenceIds([])
   }
 
-  // Add logging to track event
   const handleConfirmGeneration = async () => {
-    console.log(`[v0] Confirmed generation for block: "${block.title}" with ${selectedReferenceIds.length} references`)
     setIsReferenceDialogOpen(false)
     await handleRegenerateBlock(block.id, selectedReferenceIds)
   }
@@ -259,7 +373,7 @@ function OutlineItem({
 
     addBlock(newBlock)
     setIsAddingChild(false)
-    setIsExpanded(true)
+    setLocalExpanded(true)
   }
 
   const hasChildren = block.children && block.children.length > 0
@@ -275,218 +389,274 @@ function OutlineItem({
             style={{
               ...provided.draggableProps.style,
               opacity: snapshot.isDragging ? 0.8 : 1,
-              marginLeft: depth > 0 ? `${depth * 24}px` : 0,
             }}
-            className="space-y-2"
           >
-            <Card
-              className={`p-4 ${snapshot.isDragging ? "shadow-lg" : ""} ${
+            {/* Compact row */}
+            <div
+              className={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors group cursor-pointer ${
+                snapshot.isDragging ? "bg-accent shadow-md" : showSourceContext ? "bg-muted/80" : "hover:bg-muted/60"
+              } ${
                 (block as any).aiModified
-                  ? "border-2 border-amber-400 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-950/20"
+                  ? "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-amber-400"
                   : ""
               } ${
-                isGenerating ? "border-2 border-blue-400 dark:border-blue-600 bg-blue-50/50 dark:bg-blue-950/20" : ""
+                isGenerating ? "bg-blue-50/60 dark:bg-blue-950/20 border-l-2 border-blue-400" : ""
               }`}
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+              onClick={(e) => {
+                // Don't toggle if clicking on input, button, or textarea
+                const target = e.target as HTMLElement
+                if (target.tagName === "INPUT" || target.tagName === "BUTTON" || target.tagName === "TEXTAREA" || target.closest("button")) return
+                setShowSourceContext(!showSourceContext)
+              }}
             >
-              {(block as any).aiModified && (
-                <div className="mb-3 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/50 px-3 py-1.5 rounded-md">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span className="font-medium">Modified by AI</span>
-                  <button
-                    onClick={() => updateBlock(block.id, { aiModified: false })}
-                    className="ml-auto text-xs hover:underline"
-                  >
-                    Dismiss
-                  </button>
+              {/* Drag handle */}
+              <div
+                {...provided.dragHandleProps}
+                className="cursor-grab active:cursor-grabbing hover:bg-muted rounded p-0.5 transition-colors opacity-0 group-hover:opacity-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GripVertical className="w-3.5 h-3.5 text-muted-foreground" />
+              </div>
+
+              {/* Collapse arrow for sections / expand indicator for others */}
+              {canHaveChildren ? (
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleExpanded(); }}
+                  className="p-0.5 hover:bg-muted rounded transition-colors shrink-0"
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                  )}
+                </button>
+              ) : (
+                <div className="shrink-0 p-0.5">
+                  {showSourceContext ? (
+                    <ChevronDown className="w-3 h-3 text-muted-foreground/50" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3 text-muted-foreground/50" />
+                  )}
                 </div>
               )}
-              <div className="flex items-start gap-3">
-                <div
-                  {...provided.dragHandleProps}
-                  className="mt-1 cursor-grab active:cursor-grabbing hover:bg-muted rounded p-1 transition-colors"
+
+              {/* Icon */}
+              <div className="p-1 rounded bg-primary/10 text-primary shrink-0">{getBlockIcon(block)}</div>
+
+              {/* Inline editable title */}
+              <Input
+                value={block.title}
+                onChange={(e) => updateBlock(block.id, { title: e.target.value })}
+                className="flex-1 h-7 text-xs font-medium border-0 bg-transparent shadow-none focus-visible:ring-1 focus-visible:ring-ring px-1.5"
+                placeholder="Block title"
+                onClick={(e) => e.stopPropagation()}
+              />
+
+              {/* Type badge */}
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0 capitalize">
+                {block.type}
+              </span>
+
+              {/* Action buttons - show on hover */}
+              <div className={`flex items-center gap-0.5 shrink-0 transition-opacity ${isHovered ? "opacity-100" : "opacity-0"}`}>
+                {(block.type === "tactic" || block.type === "text") && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); handleOpenReferenceDialog(); }}
+                    disabled={isGenerating}
+                    className="h-6 w-6"
+                    title="Generate content"
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3 h-3" />
+                    )}
+                  </Button>
+                )}
+
+                {canHaveChildren && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); setIsAddingChild(!isAddingChild); }}
+                    className="h-6 w-6"
+                    title="Add child block"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </Button>
+                )}
+
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => { e.stopPropagation(); removeBlock(block.id); }}
+                  className="h-6 w-6 text-destructive hover:text-destructive"
+                  title="Remove"
                 >
-                  <GripVertical className="w-5 h-5 text-muted-foreground" />
-                </div>
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
 
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-center gap-2">
-                    {canHaveChildren && hasChildren && (
-                      <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="p-1 hover:bg-muted rounded transition-colors"
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </button>
-                    )}
-
-                    <div className="p-1.5 rounded-md bg-primary/10 text-primary">{getBlockIcon(block)}</div>
-
-                    <Input
-                      value={block.title}
-                      onChange={(e) => updateBlock(block.id, { title: e.target.value })}
-                      className="flex-1 font-medium"
-                      placeholder="Block title"
-                    />
-
-                    <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">{block.type}</span>
+            {/* Accordion expansion - description/context + tactic details */}
+            {showSourceContext && (
+              <div className="ml-8 mr-2 mt-1 mb-1.5 space-y-2 animate-in slide-in-from-top-1 duration-150">
+                {/* AI Modified badge */}
+                {(block as any).aiModified && (
+                  <div className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>Modified by AI</span>
+                    <button
+                      onClick={() => updateBlock(block.id, { aiModified: false })}
+                      className="ml-1 hover:underline text-muted-foreground"
+                    >
+                      dismiss
+                    </button>
                   </div>
+                )}
 
-                  {block.type === "section" && (
-                    <div className="space-y-2">
-                      <Label className="text-sm text-muted-foreground">Description</Label>
-                      <Textarea
-                        value={(block as any).description || ""}
-                        onChange={(e) => updateBlock(block.id, { description: e.target.value })}
-                        placeholder="Enter a description for this section/campaign..."
-                        rows={3}
-                        className="resize-none"
+                {/* Description / Source context */}
+                {block.type === "section" ? (
+                  <Textarea
+                    value={(block as any).description || ""}
+                    onChange={(e) => updateBlock(block.id, { description: e.target.value })}
+                    placeholder="Section description..."
+                    rows={2}
+                    className="resize-none text-xs"
+                  />
+                ) : (
+                  <Textarea
+                    value={(block as any).sourceContext || ""}
+                    onChange={(e) => updateBlock(block.id, { sourceContext: e.target.value })}
+                    placeholder="Source context for AI generation..."
+                    rows={2}
+                    className="resize-none text-xs"
+                  />
+                )}
+
+                {/* Tactic-specific fields: hours + dates */}
+                {block.type === "tactic" && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Hours</Label>
+                      <Input
+                        type="number"
+                        value={(block as TacticBlock).hours}
+                        onChange={(e) => updateBlock(block.id, { hours: Number.parseInt(e.target.value) || 0 })}
+                        className="h-7 text-xs mt-0.5"
                       />
                     </div>
-                  )}
-
-                  {block.type !== "section" && (
-                    <div className="space-y-2">
-                      <Label className="text-sm text-muted-foreground">Source Context (for AI generation)</Label>
-                      <Textarea
-                        value={(block as any).sourceContext || ""}
-                        onChange={(e) => updateBlock(block.id, { sourceContext: e.target.value })}
-                        placeholder="Provide context that the AI will use to flesh out this block's content..."
-                        rows={3}
-                        className="resize-none"
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Start</Label>
+                      <Input
+                        type="date"
+                        value={(block as TacticBlock).startDate}
+                        onChange={(e) => updateBlock(block.id, { startDate: e.target.value })}
+                        className="h-7 text-xs mt-0.5"
                       />
                     </div>
-                  )}
-
-                  {block.type === "tactic" && (
-                    <div className="grid grid-cols-3 gap-3 text-sm">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Hours</Label>
-                        <Input
-                          type="number"
-                          value={(block as TacticBlock).hours}
-                          onChange={(e) => updateBlock(block.id, { hours: Number.parseInt(e.target.value) || 0 })}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Start Date</Label>
-                        <Input
-                          type="date"
-                          value={(block as TacticBlock).startDate}
-                          onChange={(e) => updateBlock(block.id, { startDate: e.target.value })}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">End Date</Label>
-                        <Input
-                          type="date"
-                          value={(block as TacticBlock).endDate}
-                          onChange={(e) => updateBlock(block.id, { endDate: e.target.value })}
-                          className="mt-1"
-                        />
-                      </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">End</Label>
+                      <Input
+                        type="date"
+                        value={(block as TacticBlock).endDate}
+                        onChange={(e) => updateBlock(block.id, { endDate: e.target.value })}
+                        className="h-7 text-xs mt-0.5"
+                      />
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {(block.type === "tactic" || block.type === "text") && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          console.log(
-                            `[v0] Generate Content button clicked for: "${block.title}" (${block.type}) Depth: ${depth}`,
-                          )
-                          handleOpenReferenceDialog()
-                        }}
-                        disabled={isGenerating} // Disable button while generating
-                        className={`gap-2 ${isGenerating ? "animate-pulse" : ""}`}
-                      >
-                        {isGenerating ? (
-                          <>
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-3 h-3" />
-                            Generate Content
-                          </>
-                        )}
-                      </Button>
-                    )}
-
-                    {canHaveChildren && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setIsAddingChild(!isAddingChild)}
-                        className="gap-2"
-                      >
-                        <Plus className="w-3 h-3" />
-                        Add Child Block
-                      </Button>
-                    )}
-
+                {/* Quick actions row */}
+                <div className="flex items-center gap-1.5">
+                  {(block.type === "tactic" || block.type === "text") && (
                     <Button
                       size="sm"
-                      variant="ghost"
-                      onClick={() => removeBlock(block.id)}
-                      className="gap-2 text-destructive hover:text-destructive"
+                      variant="secondary"
+                      onClick={handleOpenReferenceDialog}
+                      disabled={isGenerating}
+                      className="h-6 text-[10px] gap-1 px-2"
                     >
-                      <Trash2 className="w-3 h-3" />
-                      Remove
+                      {isGenerating ? (
+                        <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-2.5 h-2.5" />
+                      )}
+                      {isGenerating ? "Generating..." : "Generate Content"}
                     </Button>
-                  </div>
-
-                  {isAddingChild && canHaveChildren && (
-                    <div className="flex gap-2 p-3 bg-muted/50 rounded-lg border">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleAddChildBlock("text")}
-                        className="gap-2 flex-1"
-                      >
-                        <FileText className="w-3 h-3" />
-                        Text Section
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleAddChildBlock("tactic")}
-                        className="gap-2 flex-1"
-                      >
-                        <Sparkles className="w-3 h-3" />
-                        Marketing Tactic
-                      </Button>
-                    </div>
+                  )}
+                  {canHaveChildren && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsAddingChild(!isAddingChild)}
+                      className="h-6 text-[10px] gap-1 px-2"
+                    >
+                      <Plus className="w-2.5 h-2.5" />
+                      Add Child
+                    </Button>
                   )}
                 </div>
               </div>
-            </Card>
+            )}
 
+            {/* AI Modified badge when collapsed */}
+            {!showSourceContext && (block as any).aiModified && (
+              <div className="ml-8 mt-0.5 mb-0.5 flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+                <Sparkles className="w-2.5 h-2.5" />
+                <span>Modified by AI</span>
+                <button
+                  onClick={() => updateBlock(block.id, { aiModified: false })}
+                  className="ml-1 hover:underline text-muted-foreground"
+                >
+                  dismiss
+                </button>
+              </div>
+            )}
+
+            {/* Add child block picker (inline) */}
+            {isAddingChild && canHaveChildren && (
+              <div className="ml-8 mt-1 mb-1 flex gap-1.5">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleAddChildBlock("text")}
+                  className="h-7 text-xs gap-1.5"
+                >
+                  <FileText className="w-3 h-3" />
+                  Text
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleAddChildBlock("tactic")}
+                  className="h-7 text-xs gap-1.5"
+                >
+                  <Zap className="w-3 h-3" />
+                  Tactic
+                </Button>
+              </div>
+            )}
+
+            {/* Children (expanded) */}
             {isExpanded && hasChildren && (
-              <div className="ml-6 border-l-2 border-muted pl-4">
+              <div className="ml-5 border-l border-muted-foreground/20 pl-2 mt-0.5">
                 <DragDropContext
                   onDragEnd={(result) => {
                     if (!result.destination) return
-                    // Handle reordering within this section
                     const updatedChildren = Array.from(block.children!)
                     const [removed] = updatedChildren.splice(result.source.index, 1)
                     updatedChildren.splice(result.destination.index, 0, removed)
-
-                    // Update the parent block with reordered children
                     updateBlock(block.id, { children: updatedChildren })
                   }}
                 >
                   <Droppable droppableId={`section-${block.id}`}>
                     {(provided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-0">
                         {block.children!.map((child, childIndex) => (
                           <OutlineItem
                             key={child.id}
@@ -507,16 +677,14 @@ function OutlineItem({
         )}
       </Draggable>
 
+      {/* Reference Dialog */}
       <Dialog
         open={isReferenceDialogOpen}
-        onOpenChange={(open) => {
-          console.log(`[v0] Reference dialog ${open ? "opened" : "closed"} for: "${block.title}"`)
-          setIsReferenceDialogOpen(open)
-        }}
+        onOpenChange={setIsReferenceDialogOpen}
       >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Generate Content for "{block.title}"</DialogTitle>
+            <DialogTitle>Generate Content for &ldquo;{block.title}&rdquo;</DialogTitle>
             <DialogDescription>
               Optionally select references to provide additional context for AI generation
             </DialogDescription>
@@ -577,10 +745,7 @@ function OutlineItem({
           <div className="flex gap-3 pt-4 border-t">
             <Button
               variant="outline"
-              onClick={() => {
-                console.log(`[v0] Canceling generation for: "${block.title}"`)
-                setIsReferenceDialogOpen(false)
-              }}
+              onClick={() => setIsReferenceDialogOpen(false)}
               className="flex-1"
             >
               Cancel
@@ -596,6 +761,9 @@ function OutlineItem({
   )
 }
 
+// ─────────────────────────────────────────────
+// Main PlanOutline Component
+// ─────────────────────────────────────────────
 export function PlanOutline() {
   const { currentPlan, reorderBlocks, addBlock, setCurrentPlan, updateBlock } = usePlanStore()
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -629,25 +797,35 @@ export function PlanOutline() {
   const [isGenerateAllDialogOpen, setIsGenerateAllDialogOpen] = useState(false)
   const [isLoadingReferences, setIsLoadingReferences] = useState(false)
 
-  // Moved getAllBlocksFlattened here to be accessible by PlanOutline as well
-  // const getAllBlocksFlattened = (blocks: Block[]): Block[] => {
-  //   const result: Block[] = []
+  // Tactic drawer state
+  const [isDrawerOpen, setIsDrawerOpen] = useState(true)
+  const [drawerTemplates, setDrawerTemplates] = useState<TacticTemplate[]>([])
+  const [isLoadingDrawerTemplates, setIsLoadingDrawerTemplates] = useState(false)
 
-  //   const traverse = (blockList: Block[]) => {
-  //     for (const block of blockList) {
-  //       result.push(block)
-  //       if (block.children && block.children.length > 0) {
-  //         traverse(block.children)
-  //       }
-  //     }
-  //   }
-
-  //   traverse(blocks)
-  //   return result
-  // }
+  // Expand/collapse all
+  const [globalExpanded, setGlobalExpanded] = useState<boolean | null>(null)
+  const resetGlobal = useCallback(() => setGlobalExpanded(null), [])
 
   const blocks = currentPlan?.blocks || []
   const isEmptyOutline = blocks.length === 0
+
+  // Load templates for the drawer on mount
+  useEffect(() => {
+    setIsLoadingDrawerTemplates(true)
+    fetch("/api/tactic-templates")
+      .then((res) => res.json())
+      .then((data) => {
+        const templates = Array.isArray(data) ? data : data?.templates || []
+        setDrawerTemplates(templates)
+        setTacticTemplates(templates) // Also populate dialog templates
+        setIsLoadingDrawerTemplates(false)
+      })
+      .catch((err) => {
+        console.error("[v0] Error fetching templates:", err)
+        setIsLoadingDrawerTemplates(false)
+        setDrawerTemplates([])
+      })
+  }, [])
 
   useEffect(() => {
     const today = new Date()
@@ -659,13 +837,11 @@ export function PlanOutline() {
 
   useEffect(() => {
     if (isAddDialogOpen && selectedBlockType === "tactic" && tacticTemplates.length === 0) {
-      console.log("[v0] Loading tactic templates...")
       setIsLoadingTemplates(true)
       fetch("/api/tactic-templates")
         .then((res) => res.json())
         .then((data) => {
           const templates = Array.isArray(data) ? data : data?.templates || []
-          console.log("[v0] Templates loaded:", templates.length)
           setTacticTemplates(templates)
           setIsLoadingTemplates(false)
         })
@@ -731,6 +907,44 @@ export function PlanOutline() {
     reorderBlocks(result.source.index, result.destination.index)
   }
 
+  // Add tactic from drawer
+  const handleAddTacticFromDrawer = (template: TacticTemplate) => {
+    if (!currentPlan) return
+
+    const today = new Date()
+    const end = new Date(today)
+    end.setDate(today.getDate() + (template.defaultDuration || 7))
+
+    const newBlock: TacticBlock = {
+      id: crypto.randomUUID(),
+      order: currentPlan.blocks.length,
+      title: template.name,
+      type: "tactic",
+      tacticId: template.id,
+      description: template.description || "",
+      content: "",
+      sourceContext: [
+        template.what ? `What: ${template.what}` : "",
+        template.why ? `Why: ${template.why}` : "",
+        template.how ? `How: ${template.how}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      hours: template.defaultHours || 5,
+      startDate: today.toISOString().split("T")[0],
+      endDate: end.toISOString().split("T")[0],
+      icon: template.icon || "Package",
+      parentId: undefined,
+    }
+
+    addBlock(newBlock)
+
+    toast({
+      title: "Tactic added",
+      description: `"${template.name}" has been added to your outline.`,
+    })
+  }
+
   const handleAddBlock = () => {
     if (!newBlockTitle.trim()) {
       toast({
@@ -757,7 +971,7 @@ export function PlanOutline() {
         type: "section",
         content: "",
         children: [],
-        description: "", // Added description field
+        description: "",
       }
     } else if (selectedBlockType === "text") {
       newBlock = {
@@ -818,11 +1032,6 @@ export function PlanOutline() {
   }
 
   const handleGenerateOrEditOutline = async () => {
-    console.log("[v0] Generate/Edit Outline button clicked")
-    console.log("[v0] Instructions:", editInstructions)
-    console.log("[v0] Selected references:", editSelectedReferenceIds.length)
-    console.log("[v0] Current blocks count:", currentPlan?.blocks.length || 0)
-
     if (!editInstructions.trim()) {
       toast({
         title: "Instructions required",
@@ -845,8 +1054,6 @@ export function PlanOutline() {
 
     try {
       if (currentPlan.blocks.length === 0) {
-        console.log("[v0] No existing blocks - calling generate-outline endpoint")
-
         const response = await fetch(`/api/plans/${currentPlan.id}/generate-outline`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -858,16 +1065,12 @@ export function PlanOutline() {
           }),
         })
 
-        console.log("[v0] Generate response status:", response.status)
-
         if (!response.ok) {
           const errorData = await response.json()
-          console.error("[v0] Generate error response:", errorData)
           throw new Error(errorData.error || "Failed to generate outline")
         }
 
         const { blocks } = await response.json()
-        console.log("[v0] Generated blocks count:", blocks.length)
 
         setCurrentPlan({
           ...currentPlan,
@@ -880,10 +1083,6 @@ export function PlanOutline() {
           description: `Created ${blocks.length} blocks for your plan outline.`,
         })
       } else {
-        // Edit existing blocks
-        console.log("[v0] Editing existing blocks - calling edit-outline endpoint")
-        console.log("[v0] Sending edit request with", currentPlan.blocks.length, "blocks")
-
         const response = await fetch(`/api/plans/${currentPlan.id}/edit-outline`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -894,16 +1093,12 @@ export function PlanOutline() {
           }),
         })
 
-        console.log("[v0] Edit response status:", response.status)
-
         if (!response.ok) {
           const errorData = await response.json()
-          console.error("[v0] Edit error response:", errorData)
           throw new Error(errorData.error || "Failed to edit outline")
         }
 
         const { blocks } = await response.json()
-        console.log("[v0] Received edited blocks:", blocks.length)
 
         setCurrentPlan({
           ...currentPlan,
@@ -960,7 +1155,6 @@ export function PlanOutline() {
 
       const { blocks } = await response.json()
 
-      // Add all generated blocks to the plan
       if (currentPlan) {
         setCurrentPlan({
           ...currentPlan,
@@ -990,10 +1184,6 @@ export function PlanOutline() {
   }
 
   const handleEditOutline = async () => {
-    console.log("[v0] Edit Outline button clicked")
-    console.log("[v0] Instructions:", editInstructions)
-    console.log("[v0] Selected references:", editSelectedReferenceIds.length)
-
     if (!editInstructions.trim()) {
       toast({
         title: "Instructions required",
@@ -1004,7 +1194,6 @@ export function PlanOutline() {
     }
 
     if (!currentPlan || currentPlan.blocks.length === 0) {
-      console.log("[v0] No blocks available to edit")
       toast({
         title: "No blocks to edit",
         description: "Create some blocks first before editing.",
@@ -1013,12 +1202,9 @@ export function PlanOutline() {
       return
     }
 
-    console.log("[v0] Starting outline edit process...")
     setIsEditingOutline(true)
 
     try {
-      console.log("[v0] Sending edit request with", currentPlan.blocks.length, "blocks")
-
       const response = await fetch(`/api/plans/${currentPlan.id}/edit-outline`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1029,22 +1215,13 @@ export function PlanOutline() {
         }),
       })
 
-      console.log("[v0] Edit response status:", response.status)
-
       if (!response.ok) {
         const errorData = await response.json()
-        console.error("[v0] Edit error response:", errorData)
         throw new Error(errorData.error || "Failed to edit outline")
       }
 
       const { blocks, summary, changesExplanation } = await response.json()
 
-      console.log("[v0] Received edited blocks:", {
-        total: blocks.length,
-        modified: blocks.filter((b: any) => b.aiModified).length,
-      })
-
-      // Update the plan with edited blocks
       if (currentPlan) {
         setCurrentPlan({
           ...currentPlan,
@@ -1070,7 +1247,6 @@ export function PlanOutline() {
       })
     } finally {
       setIsEditingOutline(false)
-      console.log("[v0] Edit outline process completed")
     }
   }
 
@@ -1087,8 +1263,6 @@ export function PlanOutline() {
     setIsGeneratingAll(true)
 
     try {
-      console.log("[v0] Sending generate all request with", currentPlan.blocks.length, "blocks")
-
       const response = await fetch(`/api/plans/${currentPlan.id}/generate-all-blocks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1105,9 +1279,6 @@ export function PlanOutline() {
 
       const { blocks: updatedBlocks } = await response.json()
 
-      console.log("[v0] Received generated blocks:", updatedBlocks.length)
-
-      // Update the plan with generated blocks
       if (currentPlan) {
         setCurrentPlan({
           ...currentPlan,
@@ -1153,15 +1324,12 @@ export function PlanOutline() {
     })
 
     try {
-      // Import the utility function
       const { suggestIconForTactic } = await import("@/lib/utils")
 
-      // Helper to recursively update icons in all blocks
       const updateBlockIcons = (blocks: Block[]): Block[] => {
         return blocks.map((block) => {
           let updatedBlock = { ...block }
 
-          // Update icon for tactic blocks
           if (block.type === "tactic") {
             const tacticBlock = block as TacticBlock
             const sourceContext = (tacticBlock as any).sourceContext || tacticBlock.description || ""
@@ -1169,7 +1337,6 @@ export function PlanOutline() {
             updatedBlock = { ...updatedBlock, icon: newIcon }
           }
 
-          // Update icon for section blocks
           if (block.type === "section") {
             const sectionBlock = block as any
             const description = sectionBlock.description || ""
@@ -1177,7 +1344,6 @@ export function PlanOutline() {
             updatedBlock = { ...updatedBlock, icon: newIcon }
           }
 
-          // Recursively update children
           if (updatedBlock.children && updatedBlock.children.length > 0) {
             updatedBlock = {
               ...updatedBlock,
@@ -1189,10 +1355,8 @@ export function PlanOutline() {
         })
       }
 
-      // Update all blocks
       const updatedBlocks = updateBlockIcons(currentPlan.blocks)
 
-      // Count how many icons were changed
       const allBlocksFlat = getAllBlocksFlattened(currentPlan.blocks)
       const updatedBlocksFlat = getAllBlocksFlattened(updatedBlocks)
       const changedCount = allBlocksFlat.filter((block, index) => {
@@ -1201,7 +1365,6 @@ export function PlanOutline() {
         return oldIcon !== newIcon && (block.type === "tactic" || block.type === "section")
       }).length
 
-      // Update the plan
       setCurrentPlan({
         ...currentPlan,
         blocks: updatedBlocks,
@@ -1225,217 +1388,300 @@ export function PlanOutline() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4 px-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
-        <div className="flex-1 min-w-0">
-          <h2 className="text-2xl font-bold tracking-tight">Plan Outline</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage the skeleton of your plan and define context for AI generation
-          </p>
-        </div>
+    <OutlineContext.Provider value={{ globalExpanded, resetGlobal }}>
+      <div className="flex h-full overflow-hidden">
+        {/* Left Tactic Drawer */}
+        {isDrawerOpen && (
+          <TacticDrawer
+            templates={drawerTemplates}
+            isLoading={isLoadingDrawerTemplates}
+            onAddTactic={handleAddTacticFromDrawer}
+          />
+        )}
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleMassUpdateIcons}
-            disabled={isUpdatingIcons}
-            className="gap-2 bg-transparent"
-          >
-            {isUpdatingIcons ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Update Icons
-              </>
+        {/* Main outline area */}
+        <div className="flex-1 min-w-0 overflow-auto">
+          <div className="max-w-5xl mx-auto space-y-2 px-4 py-4">
+            {/* Header toolbar — sticky so Add Block is always reachable */}
+            <div className="sticky top-0 z-10 bg-inherit -mx-4 px-4 pb-3 pt-0 space-y-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+                  className="h-8 w-8 shrink-0"
+                  title={isDrawerOpen ? "Hide tactic drawer" : "Show tactic drawer"}
+                >
+                  {isDrawerOpen ? (
+                    <PanelLeftClose className="w-4 h-4" />
+                  ) : (
+                    <PanelLeftOpen className="w-4 h-4" />
+                  )}
+                </Button>
+
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg font-bold tracking-tight">Plan Outline</h2>
+                </div>
+
+                <Button size="sm" onClick={() => setIsAddDialogOpen(true)} className="gap-1.5 h-8 text-xs shrink-0">
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Block
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setGlobalExpanded(globalExpanded === true ? false : true)}
+                  className="gap-1.5 h-7 text-xs"
+                  title={globalExpanded === true ? "Collapse all" : "Expand all"}
+                >
+                  {globalExpanded === true ? (
+                    <>
+                      <ChevronsDownUp className="w-3.5 h-3.5" />
+                      Collapse
+                    </>
+                  ) : (
+                    <>
+                      <ChevronsUpDown className="w-3.5 h-3.5" />
+                      Expand
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleMassUpdateIcons}
+                  disabled={isUpdatingIcons}
+                  className="gap-1.5 h-7 text-xs bg-transparent"
+                >
+                  {isUpdatingIcons ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Icons
+                    </>
+                  )}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setIsGenerateAllDialogOpen(true)}
+                  disabled={isGeneratingAll}
+                  className="gap-1.5 h-7 text-xs"
+                >
+                  {isGeneratingAll ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-3.5 h-3.5" />
+                      Generate All
+                    </>
+                  )}
+                </Button>
+
+                <Button size="sm" variant="secondary" onClick={() => setIsEditDialogOpen(true)} className="gap-1.5 h-7 text-xs">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {blocks.length === 0 ? "Generate Outline" : "Edit with AI"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Outline tree */}
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="plan-outline">
+                {(provided) => (
+                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-0">
+                    {currentPlan?.blocks.map((block, index) => (
+                      <OutlineItem key={block.id} block={block} index={index} />
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+
+            {isEmptyOutline && (
+              <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
+                <FolderOpen className="w-10 h-10 mb-3 opacity-40" />
+                <p className="text-sm font-medium">No blocks yet</p>
+                <p className="text-xs mt-1">
+                  Add blocks manually, drag tactics from the left panel, or generate an outline with AI.
+                </p>
+              </div>
             )}
-          </Button>
-
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => setIsGenerateAllDialogOpen(true)}
-            disabled={isGeneratingAll}
-            className="gap-2"
-          >
-            {isGeneratingAll ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Zap className="w-4 h-4" />
-                Generate All
-              </>
-            )}
-          </Button>
-
-          {/* Make button label contextual based on whether blocks exist */}
-          <Button size="sm" variant="secondary" onClick={() => setIsEditDialogOpen(true)} className="gap-2">
-            <Sparkles className="w-4 h-4" />
-            {blocks.length === 0 ? "Generate Outline" : "Edit with AI"}
-          </Button>
-
-          <Button size="sm" onClick={() => setIsAddDialogOpen(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Add Block
-          </Button>
+          </div>
         </div>
       </div>
-
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="plan-outline">
-          {(provided) => (
-            <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-              {currentPlan?.blocks.map((block, index) => (
-                <OutlineItem key={block.id} block={block} index={index} />
-              ))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
 
       {/* Add Block Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add Block</DialogTitle>
-            <DialogDescription>Select the type of block you want to add.</DialogDescription>
+            <DialogDescription>Choose a block type, then configure it below.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Label htmlFor="block-type">Block Type</Label>
-              <select
-                id="block-type"
-                value={selectedBlockType}
-                onChange={(e) => setSelectedBlockType(e.target.value as any)}
-                className="bg-background border border-input ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm rounded-md shadow-sm"
-              >
-                <option value="section">Section</option>
-                <option value="text">Text</option>
-                <option value="tactic">Tactic</option>
-                <option value="table">Table</option>
-                <option value="timeline">Timeline</option>
-              </select>
+          <div className="space-y-5">
+            {/* Block Type Picker - Visual Cards */}
+            <div>
+              <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block">Block Type</Label>
+              <div className="grid grid-cols-5 gap-2">
+                {([
+                  { value: "section", label: "Section", icon: FolderOpen, desc: "Group blocks" },
+                  { value: "text", label: "Text", icon: FileText, desc: "Rich content" },
+                  { value: "tactic", label: "Tactic", icon: Zap, desc: "Marketing tactic" },
+                  { value: "table", label: "Table", icon: TableIcon, desc: "Data table" },
+                  { value: "timeline", label: "Timeline", icon: Calendar, desc: "Schedule" },
+                ] as const).map(({ value, label, icon: Icon, desc }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setSelectedBlockType(value)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center ${
+                      selectedBlockType === value
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-transparent bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span className="text-xs font-medium">{label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {selectedBlockType === "tactic" && (
-              <div className="space-y-4">
-                {isLoadingTemplates ? (
-                  <div className="flex items-center justify-center p-12 border rounded-lg">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : tacticTemplates.length > 0 ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>Select Tactic Template</Label>
-                      {selectedTemplate && (
-                        <span className="text-xs text-muted-foreground">{selectedTemplate.title}</span>
-                      )}
-                    </div>
-                    <ScrollArea className="h-[300px] border rounded-lg p-3">
-                      <div className="space-y-2">
-                        {tacticTemplates.map((template) => (
-                          <label
-                            key={template.id}
-                            className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                          >
-                            <input
-                              type="radio"
-                              name="tactic-template"
-                              value={template.id}
-                              checked={selectedTemplate?.id === template.id}
-                              onChange={() => setSelectedTemplate(template)}
-                              className="mt-1 cursor-pointer"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm">{template.title}</div>
-                              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                                {template.description.substring(0, 150)}...
-                              </p>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center p-12 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">No tactic templates available</p>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-3">
-                  <Label htmlFor="tactic-mode">Mode</Label>
-                  <select
-                    id="tactic-mode"
-                    value={tacticMode}
-                    onChange={(e) => setTacticMode(e.target.value as any)}
-                    className="bg-background border border-input ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm rounded-md shadow-sm"
-                  >
-                    <option value="preset">Preset</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                </div>
-
-                {tacticMode === "custom" && (
-                  <div className="space-y-2">
-                    <Label className="text-sm text-muted-foreground">Hours</Label>
-                    <Input
-                      type="number"
-                      value={customTacticHours}
-                      onChange={(e) => setCustomTacticHours(Number.parseInt(e.target.value) || 0)}
-                      className="mt-1"
-                    />
-
-                    <Label className="text-sm text-muted-foreground">Start Date</Label>
-                    <Input
-                      type="date"
-                      value={customTacticStartDate}
-                      onChange={(e) => setCustomTacticStartDate(e.target.value)}
-                      className="mt-1"
-                    />
-
-                    <Label className="text-sm text-muted-foreground">End Date</Label>
-                    <Input
-                      type="date"
-                      value={customTacticEndDate}
-                      onChange={(e) => setCustomTacticEndDate(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="block-title">Block Title</Label>
+            {/* Block Title */}
+            <div className="space-y-1.5">
+              <Label htmlFor="block-title">Title</Label>
               <Input
                 id="block-title"
                 value={newBlockTitle}
                 onChange={(e) => setNewBlockTitle(e.target.value)}
                 placeholder="Enter block title"
-                className="bg-background border border-input ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm rounded-md shadow-sm"
               />
             </div>
 
+            {/* Tactic-specific options */}
+            {selectedBlockType === "tactic" && (
+              <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+                {isLoadingTemplates ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : tacticTemplates.length > 0 ? (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Template</Label>
+                    <ScrollArea className="h-[220px] rounded-md border bg-background p-2">
+                      <div className="space-y-1">
+                        {tacticTemplates.map((template) => (
+                          <button
+                            key={template.id}
+                            type="button"
+                            onClick={() => setSelectedTemplate(template)}
+                            className={`w-full flex items-start gap-3 p-2.5 rounded-md text-left transition-colors ${
+                              selectedTemplate?.id === template.id
+                                ? "bg-primary/10 border border-primary/30"
+                                : "hover:bg-muted/80 border border-transparent"
+                            }`}
+                          >
+                            <div className={`mt-0.5 w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                              selectedTemplate?.id === template.id
+                                ? "border-primary"
+                                : "border-muted-foreground/40"
+                            }`}>
+                              {selectedTemplate?.id === template.id && (
+                                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm">{template.name}</div>
+                              <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                                {template.description.substring(0, 120)}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No tactic templates available</p>
+                )}
+
+                {/* Preset / Custom Toggle */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Mode</Label>
+                  <div className="flex rounded-md border bg-background p-0.5 w-fit">
+                    {(["preset", "custom"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setTacticMode(mode)}
+                        className={`px-3 py-1 text-xs font-medium rounded transition-colors capitalize ${
+                          tacticMode === mode
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {tacticMode === "custom" && (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Hours</Label>
+                      <Input
+                        type="number"
+                        value={customTacticHours}
+                        onChange={(e) => setCustomTacticHours(Number.parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Start Date</Label>
+                      <Input
+                        type="date"
+                        value={customTacticStartDate}
+                        onChange={(e) => setCustomTacticStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">End Date</Label>
+                      <Input
+                        type="date"
+                        value={customTacticEndDate}
+                        onChange={(e) => setCustomTacticEndDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Source Context - non-section blocks */}
             {selectedBlockType !== "section" && (
-              <div className="space-y-2">
-                <Label htmlFor="block-context">Source Context</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="block-context">Source Context <span className="text-muted-foreground font-normal">(optional)</span></Label>
                 <Textarea
                   id="block-context"
                   value={newBlockContext}
                   onChange={(e) => setNewBlockContext(e.target.value)}
                   placeholder="Provide context that the AI will use to flesh out this block's content..."
                   rows={3}
-                  className="resize-none bg-background border border-input ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2 text-sm rounded-md shadow-sm"
+                  className="resize-none"
                 />
               </div>
             )}
@@ -1632,10 +1878,7 @@ export function PlanOutline() {
           <div className="flex gap-3 pt-4 border-t">
             <Button
               variant="outline"
-              onClick={() => {
-                console.log("[v0] Cancel button clicked in Edit Outline dialog")
-                setIsEditDialogOpen(false)
-              }}
+              onClick={() => setIsEditDialogOpen(false)}
               className="flex-1"
               disabled={isEditingOutline}
             >
@@ -1739,6 +1982,6 @@ export function PlanOutline() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </OutlineContext.Provider>
   )
 }

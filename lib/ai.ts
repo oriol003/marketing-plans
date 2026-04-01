@@ -13,9 +13,9 @@
 // Model configurations
 export const AI_MODELS = {
   // Gemini 3 models - Pro for complex/long context, Flash for speed
-  GEMINI_3_PRO: 'gemini-3-pro-preview',       // Best for outline extraction, complex reasoning, long context
+  GEMINI_3_PRO: 'gemini-3.1-pro-preview',       // Best for outline extraction, complex reasoning, long context
   GEMINI_3_FLASH: 'gemini-3-flash-preview',   // Best for elaboration, content generation, fast responses
-  GEMINI_3_PRO_VISION: 'gemini-3-pro-preview',
+  GEMINI_3_PRO_VISION: 'gemini-3.1-pro-preview',
 
   // Claude models
   CLAUDE_OPUS_4_6: 'claude-opus-4-6',
@@ -27,6 +27,9 @@ export type AIModel = typeof AI_MODELS[keyof typeof AI_MODELS]
 // API endpoints
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
+
+// Request timeout (2 minutes)
+const API_TIMEOUT_MS = 120_000
 
 // Types
 export interface GenerateTextOptions {
@@ -115,6 +118,7 @@ export async function generateTextGemini(options: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -181,6 +185,7 @@ export async function generateTextGeminiFlash(options: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -258,6 +263,7 @@ Ensure all strings are properly escaped and no trailing commas are present.
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -394,6 +400,7 @@ Ensure all strings are properly escaped and no trailing commas are present.
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   })
 
   if (!response.ok) {
@@ -631,6 +638,7 @@ export async function generateWithImage(options: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(requestBody),
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   })
 
   if (!response.ok) {

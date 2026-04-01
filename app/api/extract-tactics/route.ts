@@ -1,4 +1,4 @@
-import { generateObjectGemini, generateObjectGeminiFlash } from "@/lib/ai"
+import { generateObjectGemini, generateObjectGeminiFlash, generateObjectClaude } from "@/lib/ai"
 import { z } from "zod"
 
 const STANDARD_CATEGORIES = [
@@ -16,7 +16,7 @@ const STANDARD_CATEGORIES = [
   "Video Production",
 ] as const
 
-// Stage 1: Outline extraction schema (Gemini Pro - handles long context)
+// Stage 1: Raw extraction schema (Gemini Pro - handles long context)
 const outlineSchema = z.object({
   clientName: z.string().describe("The client or company name mentioned in the transcript"),
   planTitle: z.string().describe("A suggested title for the marketing plan"),
@@ -29,6 +29,20 @@ const outlineSchema = z.object({
     clientQuote: z.string().describe("EXACT direct quote from the CLIENT (not consultant) that supports or requests this tactic. Must be verbatim from transcript."),
     quoteContext: z.string().describe("Brief context about when/why the client said this"),
   })).describe("List of ALL tactic outlines extracted from the transcript - no limit"),
+})
+
+// Stage 1.5: Decomposition schema (Claude Opus - deep thinking about structure)
+const decompositionSchema = z.object({
+  tactics: z.array(z.object({
+    title: z.string().describe("Tactic title - specific and singular (e.g., 'Meta Ads Campaign' not 'Meta & Google Ads Campaign')"),
+    briefDescription: z.string().describe("1-sentence summary of this specific tactic"),
+    category: z.enum(STANDARD_CATEGORIES).describe("Category"),
+    priority: z.enum(["high", "medium", "low"]).describe("Priority level"),
+    clientQuote: z.string().describe("The supporting client quote"),
+    quoteContext: z.string().describe("Context for the quote"),
+    phaseOf: z.string().optional().describe("If this is a sub-tactic, the name of the parent initiative it belongs to"),
+    phaseNumber: z.number().optional().describe("Order within the phase (1, 2, 3...)"),
+  })),
 })
 
 // Stage 2: Elaboration schema (Gemini Flash - fast, adds details and confidence)
@@ -53,9 +67,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "Transcript is required" }, { status: 400 })
     }
 
-    console.log("[v0] Stage 1: Extracting tactic outlines with Gemini 3 Pro, length:", transcript.length)
-    console.log("[v0] Summary context provided:", !!summaryContext)
-    console.log("[v0] Excluding tactics:", excludeTactics.length, "Find more mode:", findMore)
+    console.log("[v0] Stage 1: Extracting tactic outlines, length:", transcript.length)
 
     // Helper to safely join arrays or strings
     const safeJoin = (value: any, separator = ', ') => {
@@ -134,7 +146,7 @@ ${findMoreInstructions}
 3. **For Each Tactic, Capture:**
    - **Title:** Clear, specific, action-oriented (e.g., "Design Event Booth Graphics", "Write Email Welcome Sequence")
    - **Brief Description:** One sentence summary
-   - **Category:** MUST be exactly one of: Digital Marketing, Content & Creative, SEO & Analytics, Social Media, Advertising, Brand & Strategy, Events & PR, Website & Tech
+   - **Category:** MUST be exactly one of: ${STANDARD_CATEGORIES.join(', ')}
    - **Client Quote:** THE EXACT WORDS the CLIENT said that relate to this tactic. Look for:
      * Direct requests ("We need...", "I want...", "Can you do...")
      * Pain points ("Our problem is...", "We struggle with...")
@@ -153,9 +165,93 @@ Return comprehensive analysis with ALL extracted tactics - the more specific, th
 
     console.log("[v0] Stage 1 complete. Extracted", outlineResult.object.tacticOutlines.length, "tactic outlines")
 
+    // Stage 1.5: Use Claude Opus to decompose bundled tactics into phases
+    // This catches things like "Meta & Google Ads Campaign" → separate Meta and Google tactics
+    const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY
+    let decomposedTactics = outlineResult.object.tacticOutlines
+
+    if (hasAnthropicKey) {
+      console.log("[v0] Stage 1.5: Decomposing bundled tactics into phases")
+
+      try {
+        // Build a lookup map so Claude's output can reference original quotes by index
+        const tacticList = outlineResult.object.tacticOutlines
+          .map((t, i) => `${i + 1}. "${t.title}" — ${t.briefDescription} [${t.category}]\n   Client quote: "${t.clientQuote}"`)
+          .join('\n\n')
+
+        const decomposition = await generateObjectClaude<z.infer<typeof decompositionSchema>>({
+          schema: decompositionSchema,
+          maxTokens: 16000,
+          temperature: 0.2,
+          systemPrompt: `You are a senior marketing strategist who structures marketing plans into clean, actionable campaigns and phases.
+
+Your job is to review extracted marketing tactics and:
+1. Identify the BIG CAMPAIGNS or INITIATIVES (e.g., "Event Attendee Acquisition Campaign", "Competitor Market Expansion Campaign")
+2. Decompose bundled tactics into focused, single-platform/single-deliverable tactics
+3. Group related tactics under their parent campaign using the phaseOf field
+
+Think about it like this: a marketing plan has CAMPAIGNS (big strategic initiatives aimed at a specific audience or goal). Each campaign has TACTICS (the specific channels, creatives, and deliverables that execute the campaign).`,
+          prompt: `## CLIENT: ${outlineResult.object.clientName}
+## OBJECTIVE: ${outlineResult.object.objective}
+
+## EXTRACTED TACTICS TO REVIEW:
+${tacticList}
+
+## YOUR TASK:
+
+### Step 1: Identify Campaigns
+Look at the tactics and identify the major campaigns/initiatives. A campaign is defined by:
+- A distinct TARGET AUDIENCE (e.g., "event attendees" vs "out-of-valley competitors")
+- A distinct STRATEGIC GOAL (e.g., "drive event attendance" vs "expand geographic reach")
+- Multiple tactics that serve the same audience+goal should be grouped under ONE campaign
+
+### Step 2: Decompose & Group
+For each tactic:
+- **Split multi-platform tactics:** "Meta and Google Display campaign" → separate "Meta Ads" + "Google Display Ads" tactics
+- **Split multi-deliverable tactics:** "ad creatives, landing pages, and dashboard" → separate focused tactics
+- **Preserve single-focus tactics:** Don't over-split. "Design 5 Instagram carousels" is fine as one tactic.
+- **Assign phaseOf:** Set this to the CAMPAIGN NAME that this tactic belongs to (e.g., "Event Attendee Acquisition Campaign"). Tactics that aren't part of a specific campaign can omit this.
+- **Assign phaseNumber:** Order within the campaign (strategy first, then creative, then execution, then measurement)
+
+### Step 3: Preserve Evidence
+- **CRITICAL: Copy the clientQuote EXACTLY as shown above.** Do not summarize, rephrase, or abbreviate. If you split a tactic, all resulting sub-tactics get the SAME original quote verbatim.
+- The quoteContext should also be preserved from the original.
+
+### Naming Guidelines:
+- Campaign names should be descriptive: "Event Attendee Digital Campaign" not just "Campaign 1"
+- Tactic titles should be specific: "Meta Ads Campaign for Event Attendees" not "Social Media Advertising"
+- Include the audience or goal context in titles when relevant
+
+Return the complete list of tactics. Total count will be >= the original count.`,
+        })
+
+        // Post-process: ensure client quotes are preserved from originals
+        // Claude may have shortened them, so map back to originals where possible
+        const originalQuoteMap = new Map(
+          outlineResult.object.tacticOutlines.map(t => [t.title.toLowerCase(), t.clientQuote])
+        )
+
+        decomposedTactics = decomposition.object.tactics.map(t => {
+          // If the quote looks truncated or is very short, try to find the original
+          const originalQuote = originalQuoteMap.get(t.title.toLowerCase())
+          const quote = (t.clientQuote && t.clientQuote.length > 10)
+            ? t.clientQuote
+            : originalQuote || t.clientQuote
+
+          return { ...t, clientQuote: quote }
+        })
+
+        console.log("[v0] Stage 1.5 complete. Decomposed to", decomposedTactics.length, "tactics (from", outlineResult.object.tacticOutlines.length, ")")
+      } catch (error) {
+        console.error("[v0] Stage 1.5 failed, using original tactics:", error)
+        // Fall through to use original tactics
+      }
+    } else {
+      console.log("[v0] Stage 1.5 skipped: No ANTHROPIC_API_KEY configured")
+    }
+
     if (skipElaboration) {
-      // Return basic tactics without elaboration for faster iteration
-      const basicTactics = outlineResult.object.tacticOutlines.map((outline) => ({
+      const basicTactics = decomposedTactics.map((outline) => ({
         title: outline.title,
         description: outline.briefDescription,
         deliverable: outline.briefDescription,
@@ -171,6 +267,8 @@ Return comprehensive analysis with ALL extracted tactics - the more specific, th
         confidenceReason: "Pending full analysis",
         canBeDivided: false,
         suggestedSubTactics: [],
+        phaseOf: outline.phaseOf || undefined,
+        phaseNumber: outline.phaseNumber || undefined,
       }))
 
       return Response.json({
@@ -182,11 +280,15 @@ Return comprehensive analysis with ALL extracted tactics - the more specific, th
     }
 
     // Stage 2: Elaborate each tactic with Gemini Flash (fast, adds confidence)
-    console.log("[v0] Stage 2: Elaborating tactics with Gemini 3 Flash")
+    console.log("[v0] Stage 2: Elaborating", decomposedTactics.length, "tactics")
 
     const elaboratedTactics = await Promise.all(
-      outlineResult.object.tacticOutlines.map(async (outline, index) => {
-        console.log(`[v0] Elaborating tactic ${index + 1}/${outlineResult.object.tacticOutlines.length}: ${outline.title}`)
+      decomposedTactics.map(async (outline, index) => {
+        console.log(`[v0] Elaborating tactic ${index + 1}/${decomposedTactics.length}: ${outline.title}`)
+
+        const phaseContext = outline.phaseOf
+          ? `\n- Part of initiative: "${outline.phaseOf}" (phase ${outline.phaseNumber || '?'})`
+          : ''
 
         const elaboration = await generateObjectGeminiFlash<z.infer<typeof elaborationSchema>>({
           schema: elaborationSchema,
@@ -202,34 +304,38 @@ Return comprehensive analysis with ALL extracted tactics - the more specific, th
 - Category: ${outline.category}
 - Brief: ${outline.briefDescription}
 - Client said: "${outline.clientQuote}"
-- Context: ${outline.quoteContext}
+- Context: ${outline.quoteContext}${phaseContext}
 
 ## INSTRUCTIONS:
 1. Write a detailed description (2-3 sentences)
-2. Define the SPECIFIC deliverable - be very concrete:
-   - BAD: "Marketing materials"
-   - GOOD: "5 branded flyers (8.5x11), 2 pull-up banners, 1 event backdrop (10x8ft)"
+2. Define the SPECIFIC deliverable - be very concrete and focused on THIS tactic only:
+   - BAD: "Marketing materials" or "Meta and Google ad creatives"
+   - GOOD: "5 Meta carousel ads targeting event attendees within 50-mile radius"
+   - Each deliverable should be for ONE platform or ONE type of output
 3. Explain what exactly will be created (What)
 4. Explain strategic value based on what the client said (Why)
 5. Outline execution approach (How)
-6. Estimate REALISTIC hours using these guidelines:
+6. Estimate REALISTIC hours for THIS SPECIFIC tactic (not the whole initiative):
    - Strategy/planning documents: 4-8 hours
    - Messaging strategy: 6-10 hours
-   - Brand voice/guidelines: 8-12 hours  
+   - Brand voice/guidelines: 8-12 hours
    - Logo design: 8-16 hours
    - Website design (mockups): 16-24 hours
    - Website development: 30-50 hours
    - Simple content (1 flyer, 1 page): 2-4 hours
    - Social media content (per month): 8-12 hours
+   - Ad campaign setup (single platform): 6-12 hours
+   - Landing page design + dev: 8-16 hours
    - Email template: 3-6 hours
    - Video production (30s-2min): 12-24 hours
+   - Performance reporting setup: 4-8 hours
 7. Rate CONFIDENCE (1-100):
    - 90-100: Explicitly requested by client
    - 70-89: Strongly implied or clearly needed
    - 50-69: Good to have, inferred from context
    - 30-49: Optional enhancement
    - 1-29: Tangentially related
-8. Determine if this tactic is large enough to be DIVIDED into sub-deliverables
+8. Determine if this tactic can be further divided (should be rare since we already decomposed)
 9. If divisible, suggest 2-4 specific sub-tactics`,
         })
 
@@ -249,14 +355,22 @@ Return comprehensive analysis with ALL extracted tactics - the more specific, th
           confidenceReason: elaboration.object.confidenceReason,
           canBeDivided: elaboration.object.canBeDivided,
           suggestedSubTactics: elaboration.object.suggestedSubTactics || [],
+          phaseOf: outline.phaseOf || undefined,
+          phaseNumber: outline.phaseNumber || undefined,
         }
       })
     )
 
-    // Sort by confidence (highest first)
-    elaboratedTactics.sort((a, b) => b.confidence - a.confidence)
+    // Sort by confidence (highest first), then group by phase
+    elaboratedTactics.sort((a, b) => {
+      // Group phases together
+      if (a.phaseOf && b.phaseOf && a.phaseOf === b.phaseOf) {
+        return (a.phaseNumber || 0) - (b.phaseNumber || 0)
+      }
+      return b.confidence - a.confidence
+    })
 
-    console.log("[v0] Stage 2 complete. All", elaboratedTactics.length, "tactics elaborated with confidence scores")
+    console.log("[v0] Stage 2 complete. All", elaboratedTactics.length, "tactics elaborated")
 
     return Response.json({
       clientName: outlineResult.object.clientName,

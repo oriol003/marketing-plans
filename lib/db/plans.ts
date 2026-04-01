@@ -393,6 +393,11 @@ function mapBlockFromDb(dbBlock: any): Block {
       ...baseBlock,
       type: "timeline",
     }
+  } else if (dbBlock.type === "budget-summary") {
+    return {
+      ...baseBlock,
+      type: "budget-summary",
+    }
   } else if (dbBlock.type === "section") {
     return {
       ...baseBlock,
@@ -556,7 +561,7 @@ function mapBlockToDb(block: Block, planId: string, order: number, parentId?: st
       description: audienceBlock.description || "",
       content: JSON.stringify(audienceBlock.audiences || []),
     }
-  } else if (block.type === "table" || block.type === "timeline") {
+  } else if (block.type === "table" || block.type === "timeline" || block.type === "budget-summary") {
     return {
       ...base,
       content: null,
