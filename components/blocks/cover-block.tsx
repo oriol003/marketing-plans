@@ -2,224 +2,197 @@
 
 import { CoverBlock as CoverBlockType } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { GripVertical, Pencil, Trash2, Check, X, ChevronDown } from 'lucide-react';
+import { GripVertical, Trash2 } from 'lucide-react';
 import { usePlanStore } from '@/lib/store';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface CoverBlockProps {
   block: CoverBlockType;
   dragHandleProps?: any;
-  logo?: string; // Added logo prop
+  logo?: string;
+}
+
+// Inline editable text — double-click to edit, blur/enter to save
+function InlineEdit({
+  value,
+  onChange,
+  className = '',
+  placeholder = '',
+  multiline = false,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  className?: string;
+  placeholder?: string;
+  multiline?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const ref = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  useEffect(() => { setDraft(value); }, [value]);
+
+  useEffect(() => {
+    if (editing && ref.current) {
+      ref.current.focus();
+      ref.current.select();
+    }
+  }, [editing]);
+
+  const commit = useCallback(() => {
+    setEditing(false);
+    if (draft !== value) onChange(draft);
+  }, [draft, value, onChange]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !multiline) { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { setDraft(value); setEditing(false); }
+  };
+
+  if (editing) {
+    const shared = {
+      ref: ref as any,
+      value: draft,
+      onChange: (e: any) => setDraft(e.target.value),
+      onBlur: commit,
+      onKeyDown: handleKeyDown,
+      className: `${className} bg-white/60 backdrop-blur-sm border border-[#FF6B35]/30 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-[#FF6B35]/40 w-full`,
+      placeholder,
+    };
+    return multiline
+      ? <textarea {...shared} rows={3} />
+      : <input {...shared} />;
+  }
+
+  return (
+    <span
+      onDoubleClick={() => setEditing(true)}
+      className={`${className} cursor-text hover:bg-black/[0.03] rounded px-1 -mx-1 transition-colors inline-block`}
+      title="Double-click to edit"
+    >
+      {value || <span className="text-gray-300 italic">{placeholder}</span>}
+    </span>
+  );
 }
 
 export function CoverBlock({ block, dragHandleProps, logo }: CoverBlockProps) {
   const { updateBlock, deleteBlock } = usePlanStore();
-  const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState(block.title);
-  const [subtitle, setSubtitle] = useState(block.subtitle || '');
-  const [clientName, setClientName] = useState(block.clientName);
-  const [executionPeriod, setExecutionPeriod] = useState(block.executionPeriod || '');
-  const [branding, setBranding] = useState(block.branding || 'CODESM MARKETING');
-  const [badgeLabel, setBadgeLabel] = useState(block.badgeLabel || 'STRATEGIC ROADMAP');
 
-  useEffect(() => {
-    setTitle(block.title);
-    setSubtitle(block.subtitle || '');
-    setClientName(block.clientName);
-    setExecutionPeriod(block.executionPeriod || '');
-    setBranding(block.branding || 'CODESM MARKETING');
-    setBadgeLabel(block.badgeLabel || 'STRATEGIC ROADMAP');
-  }, [block]);
-
-  const handleSave = () => {
-    updateBlock(block.id, { 
-      title, 
-      subtitle, 
-      clientName, 
-      executionPeriod,
-      branding,
-      badgeLabel
-    });
-    setIsEditing(false);
-  };
-
-  const handleCancel = () => {
-    setTitle(block.title);
-    setSubtitle(block.subtitle || '');
-    setClientName(block.clientName);
-    setExecutionPeriod(block.executionPeriod || '');
-    setBranding(block.branding || 'CODESM MARKETING');
-    setBadgeLabel(block.badgeLabel || 'STRATEGIC ROADMAP');
-    setIsEditing(false);
-  };
+  // Split title: last word gets the orange accent
+  const titleWords = block.title.split(' ');
+  const titleMain = titleWords.slice(0, -1).join(' ');
+  const titleAccent = titleWords.slice(-1)[0] || '';
 
   return (
-    <div className="relative group bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-xl aspect-[8.5/11]">
+    <div className="relative group overflow-hidden shadow-xl aspect-[8.5/11]">
       <div className="hidden" {...dragHandleProps}>
         <GripVertical className="w-5 h-5" />
       </div>
 
-      {/* Decorative elements */}
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-[#00A7B5] via-[#FF6B35] to-[#FF6B35]" />
-      <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-[#FF6B35] to-[#FF8C5E] rounded-full -translate-y-1/3 translate-x-1/3" />
-      
-      {/* Action buttons */}
-      <div className="absolute top-6 right-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-        {isEditing ? (
-          <>
-            <Button variant="secondary" size="icon" onClick={handleSave} className="h-9 w-9 bg-white/90 backdrop-blur-sm shadow-sm">
-              <Check className="w-4 h-4 text-green-600" />
-            </Button>
-            <Button variant="secondary" size="icon" onClick={handleCancel} className="h-9 w-9 bg-white/90 backdrop-blur-sm shadow-sm">
-              <X className="w-4 h-4 text-red-600" />
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button variant="secondary" size="icon" onClick={() => setIsEditing(true)} className="h-9 w-9 bg-white/90 backdrop-blur-sm shadow-sm">
-              <Pencil className="w-4 h-4" />
-            </Button>
-            <Button variant="secondary" size="icon" onClick={() => deleteBlock(block.id)} className="h-9 w-9 bg-white/90 backdrop-blur-sm shadow-sm text-destructive hover:text-destructive">
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </>
-        )}
+      {/* Background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-amber-50/40 to-orange-50/60" />
+
+      {/* Subtle decorative shapes */}
+      <div className="absolute -top-20 -right-20 w-[400px] h-[400px] rounded-full bg-gradient-to-br from-[#FF6B35]/8 to-[#FFB347]/12 blur-3xl" />
+      <div className="absolute -bottom-32 -left-32 w-[350px] h-[350px] rounded-full bg-gradient-to-tr from-[#00A7B5]/6 to-[#00A7B5]/3 blur-3xl" />
+      <div className="absolute top-1/3 right-0 w-1 h-40 bg-gradient-to-b from-[#FF6B35]/0 via-[#FF6B35]/20 to-[#FF6B35]/0" />
+
+      {/* Delete button */}
+      <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+        <Button variant="secondary" size="icon" onClick={() => deleteBlock(block.id)} className="h-8 w-8 bg-white/90 backdrop-blur-sm shadow-sm text-destructive hover:text-destructive">
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
       </div>
 
-      <div className="relative px-16 py-20 h-full flex flex-col justify-between bg-gradient-to-br from-white via-orange-50/20 to-teal-50/20">
-        {/* Top section */}
-        <div className="space-y-10">
+      {/* Content */}
+      <div className="relative px-14 py-14 h-full flex flex-col">
+        {/* Top: Logos */}
+        <div className="flex items-center">
           {logo && (
-            <div className="absolute top-8 right-8 z-10">
-              <div className="bg-white rounded-lg shadow-md p-3 border border-gray-100">
-                <img 
-                  src={logo || "/placeholder.svg"} 
-                  alt="Customer logo" 
-                  className="h-12 w-auto max-w-[120px] object-contain"
-                />
-              </div>
-            </div>
+            <>
+              <img src={logo} alt="Client logo" className="h-12 w-auto max-w-[160px] object-contain" />
+              <div className="w-px h-8 bg-gray-300/80 mx-5" />
+            </>
           )}
+          <img
+            src="https://trymaas.com/images/maas-logo.svg"
+            alt="MaaS by CodeSM"
+            className="h-9 w-auto max-w-[140px] object-contain"
+          />
+        </div>
 
-          {/* Branding */}
-          {isEditing ? (
-            <Input
-              value={branding}
-              onChange={(e) => setBranding(e.target.value)}
-              className="max-w-md font-semibold text-sm tracking-widest uppercase bg-white"
-              placeholder="BRAND NAME"
+        {/* Middle: Main content */}
+        <div className="flex-1 flex flex-col justify-center -mt-4">
+          <div className="space-y-7">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2">
+              <div className="w-8 h-px bg-[#FF6B35]" />
+              <InlineEdit
+                value={block.badgeLabel || 'STRATEGIC ROADMAP'}
+                onChange={(val) => updateBlock(block.id, { badgeLabel: val })}
+                className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#FF6B35]"
+                placeholder="STRATEGIC ROADMAP"
+              />
+            </div>
+
+            {/* Title — inline editable, double-click */}
+            <div>
+              <InlineEdit
+                value={block.title}
+                onChange={(val) => updateBlock(block.id, { title: val })}
+                className="text-[3.2rem] font-extrabold leading-[1.1] tracking-tight text-gray-900 block"
+                placeholder="Plan Title"
+              />
+            </div>
+
+            {/* Subtitle */}
+            <InlineEdit
+              value={block.subtitle || ''}
+              onChange={(val) => updateBlock(block.id, { subtitle: val })}
+              className="text-[15px] leading-relaxed text-gray-500 max-w-lg block"
+              placeholder="A brief description of the marketing strategy and objectives..."
+              multiline
             />
-          ) : (
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-6 bg-[#00A7B5] rounded-full" />
-              <p className="font-semibold text-sm tracking-widest uppercase text-gray-800">
-                {branding}
-              </p>
-            </div>
-          )}
-
-          {/* Badge */}
-          {isEditing ? (
-            <Input
-              value={badgeLabel}
-              onChange={(e) => setBadgeLabel(e.target.value)}
-              className="max-w-xs bg-white"
-              placeholder="STRATEGIC ROADMAP"
-            />
-          ) : (
-            <div className="inline-block px-4 py-2 bg-[#FF6B35]/10 border border-[#FF6B35]/30 rounded-md">
-              <span className="text-xs font-bold tracking-widest uppercase text-[#FF6B35]">
-                {badgeLabel}
-              </span>
-            </div>
-          )}
-
-          {/* Title and subtitle */}
-          <div className="max-w-2xl space-y-6">
-            {isEditing ? (
-              <>
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="text-5xl font-bold bg-white"
-                  placeholder="Plan Title"
-                />
-                <Textarea
-                  value={subtitle}
-                  onChange={(e) => setSubtitle(e.target.value)}
-                  className="text-base min-h-[100px] bg-white"
-                  placeholder="A comprehensive description of the marketing strategy and objectives..."
-                />
-              </>
-            ) : (
-              <>
-                <h1 className="text-6xl font-bold leading-tight tracking-tight">
-                  {title.split(' ').slice(0, -1).join(' ')}{' '}
-                  <span className="text-[#FF6B35]">
-                    {title.split(' ').slice(-1)}
-                  </span>
-                </h1>
-                <div className="w-24 h-1.5 bg-[#00A7B5] rounded-full" />
-                {subtitle && (
-                  <p className="text-base leading-relaxed text-gray-600 max-w-xl">
-                    {subtitle}
-                  </p>
-                )}
-              </>
-            )}
           </div>
         </div>
 
-        {/* Bottom section */}
-        <div className="flex items-end justify-between mt-auto pt-24">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold tracking-widest uppercase text-[#00A7B5]">
-              Prepared For
-            </p>
-            {isEditing ? (
-              <Input
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                className="text-xl font-bold max-w-xs bg-white"
+        {/* Bottom: Client info + Period */}
+        <div className="mt-auto">
+          <div className="h-px bg-gradient-to-r from-[#00A7B5]/40 via-gray-200 to-[#FF6B35]/40 mb-6" />
+
+          <div className="flex items-end justify-between">
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#00A7B5]">
+                Prepared For
+              </p>
+              <InlineEdit
+                value={block.clientName}
+                onChange={(val) => updateBlock(block.id, { clientName: val })}
+                className="text-lg font-bold text-gray-900"
                 placeholder="Client Name"
               />
-            ) : (
-              <p className="text-xl font-bold text-gray-900">{clientName}</p>
-            )}
-          </div>
+            </div>
 
-          <div className="space-y-2 text-right">
-            <p className="text-xs font-semibold tracking-widest uppercase text-[#00A7B5]">
-              Execution Period
-            </p>
-            {isEditing ? (
-              <Input
-                value={executionPeriod}
-                onChange={(e) => setExecutionPeriod(e.target.value)}
-                className="text-xl font-bold text-right max-w-xs bg-white"
+            <div className="space-y-1.5 text-right">
+              <p className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#00A7B5]">
+                Execution Period
+              </p>
+              <InlineEdit
+                value={block.executionPeriod || ''}
+                onChange={(val) => updateBlock(block.id, { executionPeriod: val })}
+                className="text-lg font-bold text-gray-900 text-right"
                 placeholder="Q4 2025 — 2026"
               />
-            ) : (
-              <p className="text-xl font-bold text-gray-900">{executionPeriod || 'TBD'}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Down arrow indicator */}
-        <div className="absolute bottom-8 right-8">
-          <div className="w-10 h-10 bg-[#FF6B35] rounded-full flex items-center justify-center shadow-lg">
-            <ChevronDown className="w-5 h-5 text-white" />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom color bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-2 flex">
+      {/* Bottom accent bar */}
+      <div className="absolute bottom-0 left-0 right-0 h-1.5 flex">
         <div className="flex-1 bg-[#00A7B5]" />
-        <div className="flex-[1.5] bg-[#FF6B35]" />
-        <div className="flex-1 bg-gray-900" />
+        <div className="flex-[2] bg-gradient-to-r from-[#FF6B35] to-[#FFB347]" />
+        <div className="flex-[0.5] bg-gray-900" />
       </div>
     </div>
   );

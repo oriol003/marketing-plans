@@ -9,6 +9,7 @@ export interface MarketingPlan {
   logo?: string // Added optional logo URL field
   version?: number // Added version for optimistic locking
   startDate?: string // Added start date for the plan
+  budgetTierDefs?: BudgetTierDef[] // Plan-level tier definitions for consistency across all tactics
 }
 
 export interface WizardData {
@@ -20,7 +21,7 @@ export interface WizardData {
   customTactics?: CustomTactic[]
 }
 
-export type Block = TextBlock | TacticBlock | TableBlock | TimelineBlock | SectionBlock | CoverBlock | AudienceBlock
+export type Block = TextBlock | TacticBlock | TableBlock | TimelineBlock | SectionBlock | CoverBlock | AudienceBlock | BudgetSummaryBlock
 
 export interface BaseBlock {
   id: string
@@ -55,14 +56,13 @@ export interface TacticBlock extends BaseBlock {
   image?: string
   imagePosition?: "above" | "below"
   budgetEnabled?: boolean
-  budgetTiers?: {
-    minimum?: BudgetTier
-    recommended?: BudgetTier
-    aggressive?: BudgetTier
-  }
+  budgetMode?: "scenario" | "fixed" // "scenario" = tier-based, "fixed" = monthly allocation
+  budgetTiers?: Record<string, BudgetTier> // Keyed by tier ID from plan-level budgetTierDefs
   useHtml?: boolean // Added HTML mode toggle
   evidence?: string // Added evidence field to store reference citations
   deliverable?: string // The specific deliverable/output from this tactic
+  mediaFlights?: Array<{ startDate: string; endDate: string; label?: string }> // Media flight date ranges
+  budgetByMonth?: Record<string, number> // Monthly budget e.g. { "2026-01": 2000 }
 }
 
 export interface TableBlock extends BaseBlock {
@@ -85,6 +85,9 @@ export interface TacticTemplate {
   defaultHours: number
   defaultDuration: number
   icon?: string
+  what?: string
+  why?: string
+  how?: string
 }
 
 export interface CustomTactic {
@@ -128,6 +131,7 @@ export interface Audience {
   id: string
   name: string
   description: string
+  avatar?: string
   incomeLevel: string
   keyFocus: string
   demographics: string[]
@@ -145,9 +149,21 @@ export interface Reference {
   updatedAt?: string
 }
 
+export interface BudgetSummaryBlock extends BaseBlock {
+  type: "budget-summary"
+  title: string
+  sourceContext?: string
+}
+
 export interface BudgetTier {
   amount: number
   scope: string
+}
+
+export interface BudgetTierDef {
+  id: string     // Unique tier ID (e.g., "minimum", "recommended", "aggressive", or custom)
+  name: string   // Display name (e.g., "Minimum", "Recommended", "Aggressive")
+  order: number  // Sort order
 }
 
 export interface PlanShare {

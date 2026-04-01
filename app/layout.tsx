@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, Poppins } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { TopNavbar } from '@/components/top-navbar'
 import './globals.css'
 
 const inter = Inter({ 
@@ -45,6 +46,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} ${poppins.variable} font-sans antialiased`}>
+        <TopNavbar />
         {children}
         <Analytics />
       </body>

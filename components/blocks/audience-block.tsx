@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { usePlanStore } from "@/lib/store"
-import { Trash2, Plus, Users, Edit2, Check, X, Sparkles } from "lucide-react"
+import { Trash2, Plus, Users, Check, X, Sparkles, Loader2, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,21 +14,29 @@ import { Checkbox } from "@/components/ui/checkbox"
 interface AudienceBlockProps {
   block: AudienceBlockType
   dragHandleProps?: any
-  accentColor?: string // Added accent color prop from parent section
+  accentColor?: string
 }
 
 export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" }: AudienceBlockProps) {
   const { updateBlock, removeBlock, currentPlan } = usePlanStore()
-  const [isEditing, setIsEditing] = useState(false)
-  const [editingAudienceId, setEditingAudienceId] = useState<string | null>(null)
+  const [editingField, setEditingField] = useState<"title" | "description" | null>(null)
   const [editedTitle, setEditedTitle] = useState(block.title)
   const [editedDescription, setEditedDescription] = useState(block.description || "")
+  const [editingAudienceId, setEditingAudienceId] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showGenerateDialog, setShowGenerateDialog] = useState(false)
   const [generateCount, setGenerateCount] = useState(3)
   const [references, setReferences] = useState<any[]>([])
   const [selectedReferenceIds, setSelectedReferenceIds] = useState<string[]>([])
   const [customInstructions, setCustomInstructions] = useState("")
+
+  useEffect(() => {
+    setEditedTitle(block.title)
+  }, [block.title])
+
+  useEffect(() => {
+    setEditedDescription(block.description || "")
+  }, [block.description])
 
   useEffect(() => {
     if (showGenerateDialog && currentPlan?.id) {
@@ -39,11 +47,15 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
     }
   }, [showGenerateDialog, currentPlan?.id])
 
+  const saveField = (field: "title" | "description") => {
+    updateBlock(block.id, { [field]: field === "title" ? editedTitle : editedDescription })
+    setEditingField(null)
+  }
+
   const handleGenerateWithAI = async () => {
     setIsGenerating(true)
     try {
       const context = `Client: ${currentPlan?.title || "Unknown"}. Objective: ${currentPlan?.objective || "Not specified"}. ${block.description || ""}`
-
       const response = await fetch("/api/generate-audience", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -54,11 +66,8 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
           customInstructions: customInstructions || undefined,
         }),
       })
-
       if (!response.ok) throw new Error("Failed to generate personas")
-
       const data = await response.json()
-
       const newAudiences = data.personas.map((persona: any, index: number) => ({
         id: crypto.randomUUID(),
         name: persona.name,
@@ -69,17 +78,14 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
         motivations: persona.motivations,
         order: (block.audiences?.length || 0) + index,
       }))
-
       updateBlock(block.id, {
         audiences: [...(block.audiences || []), ...newAudiences],
       })
-
       setShowGenerateDialog(false)
       setSelectedReferenceIds([])
       setCustomInstructions("")
     } catch (error) {
       console.error("Error generating personas:", error)
-      alert("Failed to generate audience personas. Please try again.")
     } finally {
       setIsGenerating(false)
     }
@@ -96,7 +102,6 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
       motivations: ["Motivation 1", "Motivation 2"],
       order: block.audiences?.length || 0,
     }
-
     updateBlock(block.id, {
       audiences: [...(block.audiences || []), newAudience],
     })
@@ -113,140 +118,124 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
     updateBlock(block.id, { audiences: updatedAudiences })
   }
 
-  const handleSave = () => {
-    updateBlock(block.id, {
-      title: editedTitle,
-      description: editedDescription,
-    })
-    setIsEditing(false)
-  }
-
   return (
-    <div className="bg-white border border-border rounded-2xl shadow-sm">
-      <div {...dragHandleProps} className="hidden" />
+    <div className="relative group py-8 border-b border-border/30 last:border-b-0">
+      <div className="hidden" {...dragHandleProps} />
 
-      <div className="flex items-start gap-4 p-6 border-b border-border group">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <div
-              className="p-2.5 rounded-lg"
-              style={{ backgroundColor: `${accentColor}1A` }} // Use dynamic accent color
-            >
-              <Users className="w-5 h-5" style={{ color: accentColor }} />
-            </div>
+      {/* Header: accent bar + icon + title — matches tactic block style */}
+      <div className="flex items-center gap-4 mb-5">
+        <div className="w-[3px] self-stretch rounded-full flex-shrink-0" style={{ backgroundColor: accentColor, opacity: 0.35 }} />
 
-            {isEditing ? (
-              <Input
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                className="text-2xl font-bold font-heading border-none focus-visible:ring-0 px-0"
-              />
-            ) : (
-              <h2 className="text-2xl font-bold font-heading">{block.title}</h2>
-            )}
-          </div>
-
-          {isEditing ? (
-            <Textarea
-              value={editedDescription}
-              onChange={(e) => setEditedDescription(e.target.value)}
-              placeholder="Optional description..."
-              className="mt-2"
-              rows={2}
-            />
-          ) : block.description ? (
-            <p className="text-muted-foreground text-sm leading-relaxed">{block.description}</p>
-          ) : null}
+        <div
+          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: `${accentColor}12` }}
+        >
+          <Users className="w-5 h-5" style={{ color: accentColor }} />
         </div>
 
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          {isEditing ? (
-            <>
-              <Button variant="ghost" size="sm" onClick={handleSave} className="h-8 w-8 p-0">
-                <Check className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setIsEditing(false)
-                  setEditedTitle(block.title)
-                  setEditedDescription(block.description || "")
-                }}
-                className="h-8 w-8 p-0"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </>
+        <div className="flex-1 min-w-0">
+          {editingField === "title" ? (
+            <Input
+              value={editedTitle}
+              onChange={(e) => setEditedTitle(e.target.value)}
+              onBlur={() => saveField("title")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); saveField("title") }
+                if (e.key === "Escape") { setEditedTitle(block.title); setEditingField(null) }
+              }}
+              className="font-semibold text-xl h-auto py-0 border-none shadow-none bg-transparent focus-visible:ring-1 font-heading"
+              autoFocus
+            />
           ) : (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowGenerateDialog(true)}
-                className="h-8 gap-1.5 hover:bg-opacity-10"
-                style={{
-                  color: accentColor,
-                  backgroundColor: `${accentColor}00`,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${accentColor}1A`)}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${accentColor}00`)}
-              >
-                <Sparkles className="w-4 h-4" />
-                <span className="text-xs font-medium">AI</span>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="h-8 w-8 p-0">
-                <Edit2 className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => removeBlock(block.id)}
-                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </>
+            <h3
+              className="font-heading font-semibold text-xl text-foreground cursor-text hover:opacity-60 transition-opacity leading-snug"
+              onClick={() => { setEditedTitle(block.title); setEditingField("title") }}
+            >
+              {block.title}
+            </h3>
           )}
         </div>
-      </div>
 
-      <div className="bg-gradient-to-br from-slate-50 to-white p-8">
-        <div className="space-y-6">
-          {block.audiences?.map((audience) => (
-            <AudienceCard
-              key={audience.id}
-              audience={audience}
-              isEditing={editingAudienceId === audience.id}
-              onEdit={() => setEditingAudienceId(audience.id)}
-              onSave={() => setEditingAudienceId(null)}
-              onUpdate={(updates) => handleUpdateAudience(audience.id, updates)}
-              onDelete={() => handleDeleteAudience(audience.id)}
-              planContext={`${currentPlan?.title || ""} - ${currentPlan?.objective || ""}`}
-              accentColor={accentColor} // Pass accent color to child cards
-            />
-          ))}
-
+        {/* Hover actions */}
+        <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button
-            variant="outline"
-            onClick={handleAddAudience}
-            className="w-full h-32 border-dashed border-2 hover:border-opacity-100 transition-colors bg-transparent"
-            style={{ borderColor: `${accentColor}40` }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = accentColor
-              e.currentTarget.style.backgroundColor = `${accentColor}0D`
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = `${accentColor}40`
-              e.currentTarget.style.backgroundColor = "transparent"
-            }}
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowGenerateDialog(true)}
+            className="h-7 w-7"
+            title="Generate personas with AI"
           >
-            <Plus className="w-5 h-5 mr-2" />
-            Add Target Audience
+            <Sparkles className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={handleAddAudience} className="h-7 w-7" title="Add persona">
+            <Plus className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => removeBlock(block.id)} className="h-7 w-7 text-destructive hover:text-destructive" title="Delete block">
+            <Trash2 className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>
 
+      {/* Description — inline editable */}
+      {editingField === "description" ? (
+        <Textarea
+          value={editedDescription}
+          onChange={(e) => setEditedDescription(e.target.value)}
+          onBlur={() => saveField("description")}
+          onKeyDown={(e) => { if (e.key === "Escape") { setEditedDescription(block.description || ""); setEditingField(null) } }}
+          className="ml-[calc(3px+1rem+2.75rem+1rem)] text-sm min-h-[40px] border-none shadow-none bg-transparent focus-visible:ring-1"
+          placeholder="Describe this audience segment..."
+          autoFocus
+        />
+      ) : block.description ? (
+        <p
+          className="ml-[calc(3px+1rem+2.75rem+1rem)] text-sm text-muted-foreground leading-relaxed cursor-text hover:text-muted-foreground/60 transition-colors mb-4"
+          onClick={() => { setEditedDescription(block.description || ""); setEditingField("description") }}
+        >
+          {block.description}
+        </p>
+      ) : (
+        <p
+          className="ml-[calc(3px+1rem+2.75rem+1rem)] text-sm italic text-muted-foreground/40 cursor-text hover:text-muted-foreground/60 transition-colors mb-4"
+          onClick={() => { setEditedDescription(""); setEditingField("description") }}
+        >
+          Click to add description...
+        </p>
+      )}
+
+      {/* Persona list */}
+      <div className="ml-[calc(3px+1rem)] space-y-0">
+        {block.audiences?.map((audience) => (
+          <PersonaRow
+            key={audience.id}
+            audience={audience}
+            isEditing={editingAudienceId === audience.id}
+            onEdit={() => setEditingAudienceId(audience.id)}
+            onSave={() => setEditingAudienceId(null)}
+            onUpdate={(updates) => handleUpdateAudience(audience.id, updates)}
+            onDelete={() => handleDeleteAudience(audience.id)}
+            planContext={`${currentPlan?.title || ""} - ${currentPlan?.objective || ""}`}
+            accentColor={accentColor}
+          />
+        ))}
+      </div>
+
+      {/* Add persona button — subtle */}
+      {(!block.audiences || block.audiences.length === 0) && (
+        <div className="ml-[calc(3px+1rem+2.75rem+1rem)] mt-4">
+          <Button
+            variant="outline"
+            onClick={handleAddAudience}
+            className="h-16 w-full border-dashed border-2 text-muted-foreground hover:text-foreground"
+            style={{ borderColor: `${accentColor}30` }}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Target Audience
+          </Button>
+        </div>
+      )}
+
+      {/* Generate dialog */}
       {showGenerateDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 space-y-4 max-h-[90vh] overflow-y-auto">
@@ -254,11 +243,9 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
               <Sparkles className="w-5 h-5" style={{ color: accentColor }} />
               <h3 className="text-lg font-bold">Generate Audience Personas with AI</h3>
             </div>
-
             <p className="text-sm text-muted-foreground">
               AI will analyze your plan context and generate detailed target audience personas.
             </p>
-
             <div>
               <Label>Number of personas to generate</Label>
               <Input
@@ -270,7 +257,6 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
                 className="mt-1"
               />
             </div>
-
             <div>
               <Label className="text-sm font-medium">Custom Instructions (optional)</Label>
               <Textarea
@@ -280,7 +266,6 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
                 className="mt-1 min-h-[80px]"
               />
             </div>
-
             {references.length > 0 && (
               <div>
                 <Label className="text-sm font-medium mb-2 block">Select References for Context (optional)</Label>
@@ -305,22 +290,12 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
                     </div>
                   ))}
                 </div>
-                {selectedReferenceIds.length > 0 && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {selectedReferenceIds.length} reference{selectedReferenceIds.length > 1 ? "s" : ""} selected
-                  </p>
-                )}
               </div>
             )}
-
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setShowGenerateDialog(false)
-                  setSelectedReferenceIds([])
-                  setCustomInstructions("")
-                }}
+                onClick={() => { setShowGenerateDialog(false); setSelectedReferenceIds([]); setCustomInstructions("") }}
                 disabled={isGenerating}
               >
                 Cancel
@@ -328,23 +303,12 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
               <Button
                 onClick={handleGenerateWithAI}
                 disabled={isGenerating}
-                style={{
-                  backgroundColor: accentColor,
-                  color: "white",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.9")}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+                style={{ backgroundColor: accentColor, color: "white" }}
               >
                 {isGenerating ? (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2 animate-pulse" />
-                    Generating...
-                  </>
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating...</>
                 ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Generate
-                  </>
+                  <><Sparkles className="w-4 h-4 mr-2" /> Generate</>
                 )}
               </Button>
             </div>
@@ -355,7 +319,9 @@ export function AudienceBlock({ block, dragHandleProps, accentColor = "#00A7B5" 
   )
 }
 
-interface AudienceCardProps {
+// ─── Persona Row ─── Individual persona, inline-editable
+
+interface PersonaRowProps {
   audience: Audience
   isEditing: boolean
   onEdit: () => void
@@ -363,10 +329,10 @@ interface AudienceCardProps {
   onUpdate: (updates: Partial<Audience>) => void
   onDelete: () => void
   planContext: string
-  accentColor?: string // Added accent color prop
+  accentColor?: string
 }
 
-function AudienceCard({
+function PersonaRow({
   audience,
   isEditing,
   onEdit,
@@ -375,88 +341,83 @@ function AudienceCard({
   onDelete,
   planContext,
   accentColor = "#00A7B5",
-}: AudienceCardProps) {
-  const [demographics, setDemographics] = useState(audience.demographics.join(", "))
-  const [motivations, setMotivations] = useState(audience.motivations.join(", "))
-  const [isEnhancing, setIsEnhancing] = useState(false)
+}: PersonaRowProps) {
+  const toList = (v: unknown): string[] => Array.isArray(v) ? v : typeof v === 'string' ? v.split(',').map(s => s.trim()).filter(Boolean) : []
+  const [demographics, setDemographics] = useState(toList(audience.demographics).join(", "))
+  const [motivations, setMotivations] = useState(toList(audience.motivations).join(", "))
+  const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false)
 
-  const handleEnhanceWithAI = async () => {
-    setIsEnhancing(true)
-    try {
-      const response = await fetch("/api/generate-audience", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: `${planContext}. Current audience: ${audience.name} - ${audience.description}`,
-          count: 1,
-          existingAudience: audience,
-        }),
-      })
-
-      if (!response.ok) throw new Error("Failed to enhance persona")
-
-      const data = await response.json()
-      const enhanced = data.personas[0]
-
-      onUpdate({
-        name: enhanced.name,
-        description: enhanced.description,
-        incomeLevel: enhanced.incomeLevel,
-        keyFocus: enhanced.keyFocus,
-        demographics: enhanced.demographics,
-        motivations: enhanced.motivations,
-      })
-
-      setDemographics(enhanced.demographics.join(", "))
-      setMotivations(enhanced.motivations.join(", "))
-    } catch (error) {
-      console.error("Error enhancing persona:", error)
-      alert("Failed to enhance audience persona. Please try again.")
-    } finally {
-      setIsEnhancing(false)
-    }
-  }
+  useEffect(() => {
+    setDemographics(toList(audience.demographics).join(", "))
+    setMotivations(toList(audience.motivations).join(", "))
+  }, [audience.demographics, audience.motivations])
 
   const handleSave = () => {
     onUpdate({
-      demographics: demographics
-        .split(",")
-        .map((d) => d.trim())
-        .filter(Boolean),
-      motivations: motivations
-        .split(",")
-        .map((m) => m.trim())
-        .filter(Boolean),
+      demographics: demographics.split(",").map((d) => d.trim()).filter(Boolean),
+      motivations: motivations.split(",").map((m) => m.trim()).filter(Boolean),
     })
     onSave()
   }
 
+  const handleGenerateAvatar = async () => {
+    setIsGeneratingAvatar(true)
+    try {
+      const res = await fetch("/api/generate-phase-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `portrait headshot ${audience.name}`,
+          description: `Professional headshot portrait photo of a person matching: ${audience.demographics.join(", ")}. ${audience.description}`,
+          color: accentColor,
+          isPortrait: true,
+        }),
+      })
+      if (!res.ok) throw new Error("Failed to generate avatar")
+      const data = await res.json()
+      if (data.imageUrl) {
+        onUpdate({ avatar: data.imageUrl })
+      }
+    } catch (err) {
+      console.error("Avatar generation failed:", err)
+    } finally {
+      setIsGeneratingAvatar(false)
+    }
+  }
+
   if (isEditing) {
     return (
-      <div className="bg-white border border-border rounded-xl p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="py-6 border-b border-border/20 last:border-b-0 space-y-4 ml-[calc(2.75rem+1rem)]">
+        <div className="flex items-center gap-3">
+          {/* Avatar — clickable */}
+          <button
+            onClick={handleGenerateAvatar}
+            disabled={isGeneratingAvatar}
+            className="w-12 h-12 rounded-full flex-shrink-0 overflow-hidden border-2 border-dashed border-muted-foreground/30 hover:border-muted-foreground/60 transition-colors flex items-center justify-center bg-muted/50"
+            title="Click to generate AI headshot"
+          >
+            {isGeneratingAvatar ? (
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            ) : audience.avatar ? (
+              <img src={audience.avatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <User className="w-5 h-5 text-muted-foreground/50" />
+            )}
+          </button>
+
           <Input
             value={audience.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
-            className="text-xl font-bold"
+            className="text-lg font-semibold font-heading flex-1"
             placeholder="Persona Name"
           />
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleEnhanceWithAI}
-              disabled={isEnhancing}
-              className="gap-1.5 bg-transparent"
-            >
-              <Sparkles className={`w-4 h-4 ${isEnhancing ? "animate-pulse" : ""}`} />
-              {isEnhancing ? "Enhancing..." : "AI Enhance"}
+
+          <div className="flex gap-1.5">
+            <Button size="sm" variant="ghost" onClick={handleSave} className="h-7 w-7 p-0 text-green-600">
+              <Check className="w-3.5 h-3.5" />
             </Button>
-            <Button size="sm" onClick={handleSave}>
-              <Check className="w-4 h-4" />
-            </Button>
-            <Button size="sm" variant="outline" onClick={onSave}>
-              <X className="w-4 h-4" />
+            <Button size="sm" variant="ghost" onClick={onSave} className="h-7 w-7 p-0 text-red-600">
+              <X className="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>
@@ -466,116 +427,108 @@ function AudienceCard({
           onChange={(e) => onUpdate({ description: e.target.value })}
           placeholder="Brief description..."
           rows={2}
+          className="text-sm"
         />
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Income Level</Label>
+            <Label className="text-xs">Income Level</Label>
             <Input
               value={audience.incomeLevel}
               onChange={(e) => onUpdate({ incomeLevel: e.target.value })}
               placeholder="$500K+ Net Worth"
+              className="mt-1"
             />
           </div>
           <div>
-            <Label>Key Focus</Label>
+            <Label className="text-xs">Key Focus</Label>
             <Input
               value={audience.keyFocus}
               onChange={(e) => onUpdate({ keyFocus: e.target.value })}
               placeholder="Privacy & Craftsmanship"
+              className="mt-1"
             />
           </div>
         </div>
 
         <div>
-          <Label>Demographics (comma-separated)</Label>
-          <Input
-            value={demographics}
-            onChange={(e) => setDemographics(e.target.value)}
-            placeholder="Age 45-60, Married, Children"
-          />
+          <Label className="text-xs">Demographics (comma-separated)</Label>
+          <Input value={demographics} onChange={(e) => setDemographics(e.target.value)} className="mt-1" />
         </div>
 
         <div>
-          <Label>Motivations (comma-separated)</Label>
-          <Input
-            value={motivations}
-            onChange={(e) => setMotivations(e.target.value)}
-            placeholder="Family Legacy, Privacy, Turnkey Process"
-          />
+          <Label className="text-xs">Motivations (comma-separated)</Label>
+          <Input value={motivations} onChange={(e) => setMotivations(e.target.value)} className="mt-1" />
         </div>
 
-        <Button variant="destructive" size="sm" onClick={onDelete} className="w-full">
-          <Trash2 className="w-4 h-4 mr-2" />
+        <Button variant="ghost" size="sm" onClick={onDelete} className="text-destructive hover:text-destructive text-xs">
+          <Trash2 className="w-3.5 h-3.5 mr-1.5" />
           Delete Persona
         </Button>
       </div>
     )
   }
 
+  // ─── View mode ───
   return (
     <div
       onClick={onEdit}
-      className="bg-white border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow cursor-pointer group/card"
+      className="py-6 border-b border-border/20 last:border-b-0 cursor-pointer group/persona hover:bg-muted/30 transition-colors rounded-lg px-3 -mx-3 ml-[calc(2.75rem+1rem-0.75rem)]"
     >
-      <div className="flex items-start gap-4 mb-4">
-        <div className="p-3 rounded-lg bg-muted">
-          <Users className="w-6 h-6 text-foreground" />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-xl font-bold font-heading mb-1">{audience.name}</h3>
-          <p className="text-sm text-muted-foreground leading-relaxed">{audience.description}</p>
-        </div>
-      </div>
+      <div className="flex items-start gap-4">
+        {/* Avatar */}
+        <button
+          onClick={(e) => { e.stopPropagation(); handleGenerateAvatar() }}
+          disabled={isGeneratingAvatar}
+          className="w-14 h-14 rounded-full flex-shrink-0 overflow-hidden border-2 transition-all flex items-center justify-center mt-0.5"
+          style={{
+            borderColor: audience.avatar ? 'transparent' : `${accentColor}40`,
+            backgroundColor: audience.avatar ? 'transparent' : `${accentColor}08`,
+          }}
+          title={audience.avatar ? "Click to regenerate headshot" : "Click to generate AI headshot"}
+        >
+          {isGeneratingAvatar ? (
+            <Loader2 className="w-5 h-5 animate-spin" style={{ color: accentColor }} />
+          ) : audience.avatar ? (
+            <img src={audience.avatar} alt={audience.name} className="w-full h-full object-cover rounded-full" />
+          ) : (
+            <User className="w-6 h-6" style={{ color: `${accentColor}60` }} />
+          )}
+        </button>
 
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <div className="w-1 h-4 rounded" style={{ backgroundColor: accentColor }} />
-            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: accentColor }}>
-              Income Level
-            </span>
-          </div>
-          <p className="text-base font-semibold pl-3">{audience.incomeLevel}</p>
-        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="font-heading font-semibold text-lg leading-snug mb-1">{audience.name}</h4>
+          <p className="text-sm text-muted-foreground leading-relaxed mb-3">{audience.description}</p>
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <div className="w-1 h-4 bg-[#FF6B35] rounded" />
-            <span className="text-xs font-bold uppercase text-[#FF6B35] tracking-wider">Key Focus</span>
+          {/* Income + Key Focus */}
+          <div className="flex flex-wrap gap-x-8 gap-y-2 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-3.5 rounded-full" style={{ backgroundColor: accentColor }} />
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: accentColor }}>Income</span>
+              <span className="text-sm font-medium">{audience.incomeLevel}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-1 h-3.5 rounded-full bg-orange-400" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-orange-500">Focus</span>
+              <span className="text-sm font-medium">{audience.keyFocus}</span>
+            </div>
           </div>
-          <p className="text-base font-semibold pl-3">{audience.keyFocus}</p>
-        </div>
-      </div>
 
-      <div className="space-y-6">
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Demographics</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {audience.demographics.map((demo, idx) => (
-              <Badge key={idx} variant="secondary" className="text-xs whitespace-nowrap">
+          {/* Demographics */}
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {toList(audience.demographics).map((demo, idx) => (
+              <Badge key={idx} variant="secondary" className="text-xs">
                 {demo}
               </Badge>
             ))}
           </div>
-        </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Motivations</span>
-          </div>
-          <div className="space-y-2">
-            {audience.motivations.map((motivation, idx) => (
-              <div key={idx} className="flex items-start gap-2">
-                <div
-                  className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ borderColor: accentColor }}
-                >
-                  <Check className="w-2.5 h-2.5" style={{ color: accentColor }} />
-                </div>
-                <span className="text-sm leading-relaxed">{motivation}</span>
+          {/* Motivations */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {toList(audience.motivations).map((motivation, idx) => (
+              <div key={idx} className="flex items-center gap-1.5">
+                <Check className="w-3 h-3 flex-shrink-0" style={{ color: accentColor }} />
+                <span className="text-sm text-muted-foreground">{motivation}</span>
               </div>
             ))}
           </div>

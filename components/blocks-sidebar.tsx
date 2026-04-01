@@ -1,6 +1,6 @@
 import { usePlanStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
-import { Plus, GripVertical, FileText, Calendar, TableIcon, Folder, ChevronRight, ChevronDown } from 'lucide-react';
+import { Plus, GripVertical, FileText, Calendar, TableIcon, Folder, ChevronRight, ChevronDown, DollarSign } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { cn } from '@/lib/utils';
@@ -65,6 +65,8 @@ export function BlocksSidebar({ onAddBlock, activeBlockId, onBlockClick }: Block
       return TableIcon;
     } else if (block.type === 'timeline') {
       return Calendar;
+    } else if (block.type === 'budget-summary') {
+      return DollarSign;
     } else if (block.type === 'section') {
       const iconName = (block as any).icon;
       return iconName ? ((LucideIcons as any)[iconName] || Folder) : Folder;
@@ -108,18 +110,18 @@ export function BlocksSidebar({ onAddBlock, activeBlockId, onBlockClick }: Block
             <div
               onClick={() => onBlockClick(block.id)}
               className={cn(
-                "group flex items-center gap-2 px-3 py-2 rounded-md text-sm cursor-pointer transition-colors",
+                "group flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] cursor-pointer transition-colors",
                 activeBlockId === block.id
                   ? "bg-primary text-primary-foreground"
                   : "hover:bg-muted",
                 snapshot.isDragging && "shadow-lg"
               )}
-              style={{ paddingLeft: `${depth * 12 + 12}px` }}
+              style={{ paddingLeft: `${depth * 10 + 8}px` }}
             >
               <div {...provided.dragHandleProps} className="shrink-0 cursor-grab active:cursor-grabbing">
-                <GripVertical className="w-3 h-3 text-muted-foreground" />
+                <GripVertical className="w-2.5 h-2.5 text-muted-foreground" />
               </div>
-              
+
               {isSection && (
                 <button
                   onClick={(e) => {
@@ -129,13 +131,13 @@ export function BlocksSidebar({ onAddBlock, activeBlockId, onBlockClick }: Block
                   className="shrink-0"
                 >
                   {isExpanded ? (
-                    <ChevronDown className="w-4 h-4" />
+                    <ChevronDown className="w-3 h-3" />
                   ) : (
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-3 h-3" />
                   )}
                 </button>
               )}
-              {!isSection && <div className="w-4" />}
+              {!isSection && <div className="w-3" />}
               <button
                 onClick={(e) => canChangeIcon ? handleIconClick(block.id, e) : undefined}
                 className={cn(
@@ -144,7 +146,7 @@ export function BlocksSidebar({ onAddBlock, activeBlockId, onBlockClick }: Block
                 )}
                 title={canChangeIcon ? "Click to change icon" : undefined}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-3 h-3" />
               </button>
               <span className="truncate flex-1">{getBlockTitle(block)}</span>
             </div>
